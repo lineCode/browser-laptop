@@ -105,6 +105,7 @@
     "immutablediff": "^0.4.2",
     "immutablepatch": "brave/immutable-js-patch",
     "l20n": "^3.5.1",
+    "lodash.throttle": "^4.1.1",
     "lru-cache": "^1.0.0",
     "moment": "~2.18.1",
     "niceware": "^1.0.4",

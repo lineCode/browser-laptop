@@ -3,7 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const React = require('react')
-const ReactDOM = require('react-dom')
 const Immutable = require('immutable')
 const {StyleSheet, css} = require('aphrodite/no-important')
 
@@ -12,6 +11,7 @@ const ReduxComponent = require('../reduxComponent')
 const BrowserButton = require('../common/browserButton')
 const LongPressButton = require('../common/longPressButton')
 const Tab = require('./tab')
+const ListWithTransitions = require('./ListWithTransitions')
 
 // Actions
 const appActions = require('../../../../js/actions/appActions')
@@ -19,6 +19,7 @@ const windowActions = require('../../../../js/actions/windowActions')
 
 // State
 const windowState = require('../../../common/state/windowState')
+const tabState = require('../../../common/state//tabState')
 
 // Constants
 const dragTypes = require('../../../../js/constants/dragTypes')
@@ -28,8 +29,6 @@ const settings = require('../../../../js/constants/settings')
 const cx = require('../../../../js/lib/classSet')
 const contextMenus = require('../../../../js/contextMenus')
 const {getCurrentWindowId, isFocused} = require('../../currentWindow')
-const dnd = require('../../../../js/dnd')
-const dndData = require('../../../../js/dndData')
 const frameStateUtil = require('../../../../js/state/frameStateUtil')
 const {getSetting} = require('../../../../js/settings')
 
@@ -77,31 +76,6 @@ class Tabs extends React.Component {
 
   onDrop (e) {
     appActions.dataDropped(getCurrentWindowId())
-    const clientX = e.clientX
-    const sourceDragData = dndData.getDragData(e.dataTransfer, dragTypes.TAB)
-    if (sourceDragData) {
-      // If this is a different window ID than where the drag started, then
-      // the tear off will be done by tab.js
-      if (this.props.dragWindowId !== getCurrentWindowId()) {
-        return
-      }
-
-      // This must be executed async because the state change that this causes
-      // will cause the onDragEnd to never run
-      setTimeout(() => {
-        const key = sourceDragData.get('key')
-        let droppedOnTab = dnd.closestFromXOffset(this.tabRefs.filter((node) => node && node.props.frameKey !== key), clientX).selectedRef
-        if (droppedOnTab) {
-          const isLeftSide = dnd.isLeftSide(ReactDOM.findDOMNode(droppedOnTab), clientX)
-
-          windowActions.moveTab(key, droppedOnTab.props.frameKey, isLeftSide)
-          if (sourceDragData.get('pinnedLocation')) {
-            appActions.tabPinned(sourceDragData.get('tabId'), false)
-          }
-        }
-      }, 0)
-      return
-    }
 
     if (e.dataTransfer.files) {
       Array.from(e.dataTransfer.items).forEach((item) => {
@@ -113,11 +87,6 @@ class Tabs extends React.Component {
   }
 
   onDragOver (e) {
-    if (dndData.hasDragData(e.dataTransfer, dragTypes.TAB)) {
-      e.dataTransfer.dropEffect = 'move'
-      e.preventDefault()
-      return
-    }
     let intersection = e.dataTransfer.types.filter((x) => ['Files'].includes(x))
     if (intersection.length > 0) {
       e.dataTransfer.dropEffect = 'copy'
@@ -141,7 +110,7 @@ class Tabs extends React.Component {
     const unpinnedTabs = frameStateUtil.getNonPinnedFrames(currentWindow) || Immutable.List()
     const currentTabs = unpinnedTabs
       .slice(startingFrameIndex, startingFrameIndex + tabsPerTabPage)
-      .map((tab) => tab.get('key'))
+      .filter(tab => tab)
     const totalPages = Math.ceil(unpinnedTabs.size / tabsPerTabPage)
     const activeFrame = frameStateUtil.getActiveFrame(currentWindow) || Immutable.Map()
     const dragData = (state.getIn(['dragData', 'type']) === dragTypes.TAB && state.get('dragData')) || Immutable.Map()
@@ -155,74 +124,109 @@ class Tabs extends React.Component {
     props.onPreviousPage = pageIndex > 0
     props.shouldAllowWindowDrag = windowState.shouldAllowWindowDrag(state, currentWindow, activeFrame, isFocused(state))
 
+    // tab dragging
+    props.draggingTabId = tabState.draggingTabId(state)
+
     // used in other functions
     props.fixTabWidth = currentWindow.getIn(['ui', 'tabs', 'fixTabWidth'])
     props.tabPageIndex = currentWindow.getIn(['ui', 'tabs', 'tabPageIndex'])
+    props.dragData = dragData
     props.dragWindowId = dragData.get('windowId')
     props.totalPages = totalPages
-
     return props
   }
 
   render () {
-    this.tabRefs = []
+    const isPreview = this.props.previewTabPageIndex != null
     return <div className={css(styles.tabs)}
       data-test-id='tabs'
       onMouseLeave={this.onMouseLeave}
     >
-      <span className={css(
-        styles.tabs__tabStrip,
-        (this.props.previewTabPageIndex != null) && styles.tabs__tabStrip_isPreview,
-        this.props.shouldAllowWindowDrag && styles.tabs__tabStrip_allowDragging
-      )}
-        data-test-preview-tab={this.props.previewTabPageIndex != null}
-        onDragOver={this.onDragOver}
-        onDrop={this.onDrop}>
-        {
-          this.props.onPreviousPage
-            ? <BrowserButton
-              iconClass={globalStyles.appIcons.prev}
-              size='21px'
-              custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_prev]}
-              onClick={this.onPrevPage}
-            />
-            : null
-        }
-        {
-          this.props.currentTabs
-            .map((frameKey) =>
-              <Tab
-                key={'tab-' + frameKey}
-                ref={(node) => this.tabRefs.push(node)}
-                frameKey={frameKey}
-                partOfFullPageSet={this.props.partOfFullPageSet}
-              />
-            )
-        }
-        {
-          this.props.onNextPage
-            ? <BrowserButton
-              iconClass={globalStyles.appIcons.next}
-              size='21px'
-              custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_next]}
-              onClick={this.onNextPage}
-            />
-            : null
-        }
-        <LongPressButton
-          className={cx({
-            browserButton: true,
-            navbutton: true,
-            [css(styles.tabs__tabStrip__newTabButton)]: true
-          })}
+      {[
+        <ListWithTransitions className={css(
+            styles.tabs__tabStrip,
+            isPreview && styles.tabs__tabStrip_isPreview,
+            this.props.shouldAllowWindowDrag && styles.tabs__tabStrip_allowDragging
+          )}
+          key={!isPreview ? 'normal' : this.props.previewTabPageIndex}
+          disableAllAnimations={isPreview}
+          data-test-preview-tab={isPreview}
+          typeName='span'
+          duration={710}
+          delay={0}
+          staggerDelayBy={0}
+          easing='cubic-bezier(0.23, 1, 0.32, 1)'
+          enterAnimation={this.props.draggingTabId != null ? null : [
+            {
+              transform: 'translateY(50%)'
+            },
+            {
+              transform: 'translateY(0)'
+            }
+          ]}
+          leaveAnimation={this.props.draggingTabId != null ? null : [
+            {
+              transform: 'translateY(0)'
+            },
+            {
+              transform: 'translateY(100%)'
+            }
+          ]}
+          onDragOver={this.onDragOver}
+          onDrop={this.onDrop}>
+          {
+            this.props.onPreviousPage
+              ? <BrowserButton
+                key='prev'
+                iconClass={globalStyles.appIcons.prev}
+                size='21px'
+                custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_prev]}
+                onClick={this.onPrevPage}
+                />
+              : null
+          }
+          {
+            this.props.currentTabs
+              .map((frame, tabDisplayIndex) =>
+                <Tab
+                  key={`tab-${frame.get('tabId')}-${frame.get('key')}`}
+                  frame={frame}
+                  isDragging={this.props.draggingTabId === frame.get('tabId')}
+                  displayIndex={tabDisplayIndex}
+                  displayedTabCount={this.props.currentTabs.count()}
+                  singleTab={this.props.currentTabs.count() === 1}
+                  partOfFullPageSet={this.props.partOfFullPageSet}
+                />
+              )
+          }
+          {
+            this.props.onNextPage
+              ? <BrowserButton
+                key='next'
+                iconClass={globalStyles.appIcons.next}
+                size='21px'
+                custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_next]}
+                onClick={this.onNextPage}
+                />
+              : null
+          }
+          <LongPressButton
+            key='add'
+            className={cx({
+              browserButton: true,
+              navbutton: true,
+              [css(styles.tabs__tabStrip__newTabButton)]: true
+            })}
           label='+'
           l10nId='newTabButton'
           testId='newTabButton'
-          disabled={false}
-          onClick={this.newTab}
-          onLongPress={this.onNewTabLongPress}
-        />
-      </span>
+            disabled={false}
+            onClick={this.newTab}
+            onLongPress={this.onNewTabLongPress}
+            ListWithTransitionsPreventMoveRight
+          />
+        </ListWithTransitions>
+      ]}
     </div>
   }
 }
