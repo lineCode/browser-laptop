@@ -5,14 +5,31 @@
 const electron = require('electron')
 const throttle = require('lodash.throttle')
 const appConstants = require('../../../js/constants/appConstants')
+const windowConstants = require('../../../js/constants/windowConstants')
 const appActions = require('../../../js/actions/appActions')
+const frameStateUtil = require('../../../js/state/frameStateUtil')
 const {getCurrentWindowId} = require('../currentWindow')
 const browserWindowUtil = require('../../common/lib/browserWindowUtil')
 
 module.exports = function (windowState, action) {
   switch (action.actionType) {
+    // from initial window
     case appConstants.APP_TAB_DRAG_STARTED:
       setupDragContinueEvents()
+      break
+    // from initial or destination window
+    // translate display index of tab to frame index to move the dragged tab to
+    // since the app state unfortunately does not have access to that data
+    case windowConstants.WINDOW_TAB_DRAG_CHANGE_GROUP_DISPLAY_INDEX:
+      let { isPinnedTab, destinationIndex } = action
+      // translate to actual index, because it's not really linear under the hood
+      const frameGroup = isPinnedTab ? frameStateUtil.getPinnedFrames(windowState) : frameStateUtil.getNonPinnedFrames(windowState)
+      const destinationFrame = frameGroup.get(destinationIndex)
+      if (!destinationFrame) {
+        console.error(`Tried to drag to frame position ${destinationIndex} which does not exist`)
+      }
+      const destinationFrameIndex = frameStateUtil.getFrameIndex(windowState, destinationFrame.get('key'))
+      appActions.tabDragChangeWindowDisplayIndex(destinationIndex, destinationFrameIndex)
       break
   }
   return windowState

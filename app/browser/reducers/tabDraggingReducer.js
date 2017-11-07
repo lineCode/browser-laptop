@@ -47,18 +47,19 @@ const reducer = (state, action, immutableAction) => {
       state = state.delete(stateKey)
       break
     }
-    case appConstants.APP_TAB_DRAG_CHANGE_DISPLAY_INDEX: {
+    case appConstants.APP_TAB_DRAG_CHANGE_WINDOW_DISPLAY_INDEX: {
       const sourceTabId = state.getIn([stateKey, 'sourceTabId'])
-      const destinationIndex = action.get('destinationIndex')
+      const destinationDisplayIndex = action.get('destinationDisplayIndex')
+      const destinationFrameIndex = action.get('destinationFrameIndex')
       state = state.mergeIn([stateKey], {
         // cache what we're doing, so we don't repeat request to move tab
         // since it may take longer than it takes to fire mousemove multiple times
-        displayIndexRequested: destinationIndex
+        displayIndexRequested: destinationDisplayIndex
       })
-      process.stdout.write('POS-')
+      process.stdout.write(`POS-${sourceTabId}->${destinationFrameIndex}`)
       setImmediate(() => {
-        process.stdout.write('.')
-        tabs.setTabIndex(sourceTabId, destinationIndex)
+        process.stdout.write(`.`)
+        tabs.setTabIndex(sourceTabId, destinationFrameIndex)
       })
       break
     }

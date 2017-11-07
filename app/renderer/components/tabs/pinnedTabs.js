@@ -9,6 +9,7 @@ const {StyleSheet, css} = require('aphrodite/no-important')
 // Components
 const ReduxComponent = require('../reduxComponent')
 const Tab = require('./tab')
+const ListWithTransitions = require('./ListWithTransitions')
 
 // Store
 const windowStore = require('../../../../js/stores/windowStore')
@@ -34,9 +35,30 @@ class PinnedTabs extends React.Component {
   }
 
   render () {
-    return <div
+    return <ListWithTransitions
       className={css(styles.pinnedTabs)}
       data-test-id='pinnedTabs'
+      typeName='div'
+      duration={710}
+      delay={0}
+      staggerDelayBy={0}
+      easing='cubic-bezier(0.23, 1, 0.32, 1)'
+      enterAnimation={[
+        {
+          transform: 'translateY(50%)'
+        },
+        {
+          transform: 'translateY(0)'
+        }
+      ]}
+      leaveAnimation={[
+        {
+          transform: 'translateY(0)'
+        },
+        {
+          transform: 'translateY(100%)'
+        }
+      ]}
       onDragOver={this.onDragOver}
       onDrop={this.onDrop}
     >
@@ -53,7 +75,7 @@ class PinnedTabs extends React.Component {
             />
           )
       }
-    </div>
+    </ListWithTransitions>
   }
 }
 
@@ -63,6 +85,7 @@ const styles = StyleSheet.create({
     display: 'flex',
     alignItems: 'stretch',
     boxSizing: 'border-box',
+    position: 'relative',
     marginLeft: 0,
     marginTop: 0
   }

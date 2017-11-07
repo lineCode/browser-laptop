@@ -175,23 +175,26 @@ class Tab extends React.Component {
     // but don't if we already have requested it,
     // wait until the order changes
     if (!this.props.draggingDisplayIndexRequested || this.props.draggingDisplayIndexRequested === this.props.displayIndex) {
-      // detach threshold is a time thing
-      // If it's been outside of the bounds for X time, then we can detach
-      const isOutsideBounds =
+      // detect when to ask for detach
+      if (this.props.dragCanDetach) {
+        // detach threshold is a time thing
+        // If it's been outside of the bounds for X time, then we can detach
+        const isOutsideBounds =
         e.clientX < this.parentClientRect.x - this.draggingDetachThreshold ||
         e.clientX > this.parentClientRect.x + this.parentClientRect.width + this.draggingDetachThreshold ||
         e.clientY < this.parentClientRect.y - this.draggingDetachThreshold ||
         e.clientY > this.parentClientRect.y + this.parentClientRect.height + this.draggingDetachThreshold
-      if (isOutsideBounds) {
-        // start a timeout to see if we're still outside, don't restart if we already started one
-        this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
-          appActions.tabDragDetachRequested(e.clientX, this.parentClientRect.top)
-        }, DRAG_DETACH_MS_TIME_BUFFER)
-      } else {
-        // we're not outside, so reset the timer
-        if (this.draggingDetachTimeout) {
-          window.clearTimeout(this.draggingDetachTimeout)
-          this.draggingDetachTimeout = null
+        if (isOutsideBounds) {
+          // start a timeout to see if we're still outside, don't restart if we already started one
+          this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
+            appActions.tabDragDetachRequested(e.clientX, this.parentClientRect.top)
+          }, DRAG_DETACH_MS_TIME_BUFFER)
+        } else {
+          // we're not outside, so reset the timer
+          if (this.draggingDetachTimeout) {
+            window.clearTimeout(this.draggingDetachTimeout)
+            this.draggingDetachTimeout = null
+          }
         }
       }
       // assumes all tabs in this group have same width
@@ -203,7 +206,7 @@ class Tab extends React.Component {
         Math.min(this.props.displayedTabCount - 1, Math.floor((tabLeft + (tabWidth / 2)) / tabWidth))
       )
       if (currentIndex !== destinationIndex) {
-        appActions.tabDragChangeDisplayIndex(destinationIndex)
+        windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, destinationIndex)
         // now that we have sorted, increase the threshold
         // required for detach
         this.draggingDetachThreshold = DRAG_DETACH_PX_THRESHOLD_POSTSORT
@@ -221,7 +224,7 @@ class Tab extends React.Component {
     this.dragTabMouseMoveFrame = null
     const relativeLeft = this.props.relativeXDragStart
     const currentX = this.elementRef.offsetLeft
-    const deltaX = e.clientX - currentX - relativeLeft
+    const deltaX = this.currentMouseX - this.parentClientRect.left - currentX - relativeLeft
     this.elementRef.style.setProperty('--dragging-delta-x', deltaX + 'px')
   }
 
@@ -435,6 +438,7 @@ class Tab extends React.Component {
         !dragSourceData.has('attachRequestedWindowId') &&
         !dragSourceData.has('detachRequestedWindowId') &&
         props.dragIntendedWindowId === windowId
+      props.dragCanDetach = !props.isPinnedTab
       props.relativeXDragStart = dragSourceData.get('relativeXDragStart')
       props.dragWindowClientX = dragSourceData.get('dragWindowClientX')
       props.dragWindowClientY = dragSourceData.get('dragWindowClientY')

@@ -1221,10 +1221,19 @@ const appActions = {
     })
   },
 
-  tabDragChangeDisplayIndex: function (destinationIndex) {
+  tabDragChangeGroupDisplayIndex: function (isPinnedTab, destinationIndex) {
     dispatch({
-      actionType: appConstants.APP_TAB_DRAG_CHANGE_DISPLAY_INDEX,
-      destinationIndex
+      actionType: appConstants.APP_TAB_DRAG_CHANGE_GROUP_DISPLAY_INDEX,
+      destinationIndex,
+      isPinnedTab
+    })
+  },
+
+  tabDragChangeWindowDisplayIndex: function (destinationDisplayIndex, destinationFrameIndex) {
+    dispatch({
+      actionType: appConstants.APP_TAB_DRAG_CHANGE_WINDOW_DISPLAY_INDEX,
+      destinationDisplayIndex,
+      destinationFrameIndex
     })
   },
 
