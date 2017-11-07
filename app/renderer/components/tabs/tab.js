@@ -14,7 +14,6 @@ const PrivateIcon = require('./content/privateIcon')
 const TabTitle = require('./content/tabTitle')
 const CloseTabIcon = require('./content/closeTabIcon')
 const {NotificationBarCaret} = require('../main/notificationBar')
-var electron = require('electron')
 
 // Actions
 const appActions = require('../../../../js/actions/appActions')
@@ -39,7 +38,6 @@ const contextMenus = require('../../../../js/contextMenus')
 const frameStateUtil = require('../../../../js/state/frameStateUtil')
 const {hasTabAsRelatedTarget} = require('../../lib/tabUtil')
 const isWindows = require('../../../common/lib/platformUtil').isWindows()
-const browserWindowUtil = require('../../../common/lib/browserWindowUtil')
 const {getCurrentWindowId} = require('../../currentWindow')
 const {setObserver} = require('../../lib/observerUtil')
 const UrlUtil = require('../../../../js/lib/urlutil')
@@ -49,24 +47,7 @@ const DRAG_DETACH_PX_THRESHOLD_INITIAL = 44
 const DRAG_DETACH_PX_THRESHOLD_POSTSORT = 80
 const DRAG_DETACH_MS_TIME_BUFFER = 0
 
-// HACK mousemove will only trigger in the other window if the coords are inside the bounds but
-// will trigger for this window even if the mouse is outside the window, since we started a dragEvent,
-// *but* it will forward anything for globalX and globalY, so we'll send the client coords in those properties
-// and send some fake coords in the clientX and clientY properties
-// An alternative solution would be for the other window to just call electron API
-// to get mouse cursor, and we could just send 0, 0 coords, but this reduces the spread of electron
-// calls in components, and also puts the (tiny) computation in another process, freeing the other
-// window to perform the animation
-function createEventForSendMouseMoveInput (screenX, screenY) {
-  return {
-    type: 'mousemove',
-    x: 1,
-    y: 99,
-    globalX: screenX,
-    globalY: screenY
-  }
-}
-
+// HACK - see the related `createEventFromSendMouseMoveInput` in tabDraggingWindowReducer.js
 function translateEventFromSendMouseMoveInput (receivedEvent) {
   return (receivedEvent.x === 1 && receivedEvent.y === 99)
     ? { clientX: receivedEvent.screenX, clientY: receivedEvent.screenY }
@@ -129,66 +110,11 @@ class Tab extends React.Component {
       relativeYDragStart,
       this.props.singleTab
     )
-    this.setupDragContinueEvents()
 
     if (this.frame) {
       // cancel tab preview while dragging. see #10103
       windowActions.setTabHoverState(this.props.frameKey, false, false)
     }
-  }
-
-  /// For when this tab / window is the dragging source
-  /// dispatch the events to the store so that the
-  /// other windows can receive state update of where to put the tab
-  setupDragContinueEvents () {
-    const stopDragListeningEvents = () => {
-      window.removeEventListener('mouseup', onTabDragComplete)
-      window.removeEventListener('keydown', onTabDragCancel)
-      window.removeEventListener('mousemove', onTabDragMove)
-    }
-    const onTabDragComplete = e => {
-      stopDragListeningEvents()
-      appActions.tabDragComplete()
-    }
-    const onTabDragCancel = e => {
-      if (e.keyCode === 27) { // ESC key
-        stopDragListeningEvents()
-        appActions.tabDragCancelled()
-      }
-    }
-
-    const onTabDragMove = mouseMoveEvent => {
-      mouseMoveEvent.preventDefault()
-      reportMoveToOtherWindow(mouseMoveEvent)
-    }
-    const reportMoveToOtherWindow = throttle(this.reportMoveToOtherWindow.bind(this), 4)
-    window.addEventListener('mouseup', onTabDragComplete)
-    window.addEventListener('keydown', onTabDragCancel)
-    window.addEventListener('mousemove', onTabDragMove)
-  }
-
-  /// HACK Even if the other window is 'active', it will not receive regular mousemove events
-  /// ...probably because there is another mousemove event in progress generated from another
-  /// window.
-  /// So send the mouse events using muon's BrowserWindow.sendInputEvent
-  /// This was previously done in the browser process as a result of the 'dragMoved' store action
-  /// but it was never smooth enough, even when reducing the throttle time
-  reportMoveToOtherWindow (mouseMoveEvent) {
-    // HACK we cannot get the new window ID (tabDragData.currentWindowId) from the store state
-    // when we are dragged to another window since our component will
-    // not be subscribed to store updates anymore as technically it
-    // does not exist, so...
-    // ...get the currently focused window... if this is flakey we could subscribe to the store
-    // manually (and probably create another higher order component for all this to preserve sanity)
-    const win = electron.remote.BrowserWindow.getActiveWindow()
-    if (!win || win.id === getCurrentWindowId()) {
-      return
-    }
-    const {x: clientX, y: clientY} = browserWindowUtil.getWindowClientPointAtCursor(win, {
-      x: mouseMoveEvent.screenX,
-      y: mouseMoveEvent.screenY
-    })
-    win.webContents.sendInputEvent(createEventForSendMouseMoveInput(clientX, clientY))
   }
 
   //
