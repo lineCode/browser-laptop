@@ -3,6 +3,7 @@
 * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const Immutable = require('immutable')
+const { createSelector } = require('reselect')
 
 // Constants
 const config = require('../constants/config')
@@ -15,6 +16,7 @@ const webviewActions = require('../actions/webviewActions')
 // State
 const {makeImmutable} = require('../../app/common/state/immutableUtil')
 const tabState = require('../../app/common/state/tabState')
+const tabDraggingState = require('../../app/common/state/tabDraggingState')
 
 // Utils
 const {getSetting} = require('../settings')
@@ -48,15 +50,22 @@ function getFrames (state) {
   return state.get('frames')
 }
 
-function getSortedFrames (state) {
-  return state.get('frames').sort(comparatorByKeyAsc)
-}
+const getSortedFrames = createSelector(
+  // only run next function if state.frames is different
+  state => state.get('frames'),
+  frames => frames.sort(comparatorByKeyAsc)
+)
 
-function getSortedFrameKeys (state) {
-  return state.get('frames')
-    .sort(comparatorByKeyAsc)
-    .map(frame => frame.get('key'))
-}
+const getSortedFrameKeys = createSelector(
+  // only run next function if sortedFrames is different, or isCurrentWindowDetached changes
+  [ getSortedFrames, tabDraggingState.isCurrentWindowDetached ],
+  (sortedFrames, isCurrentWindowDetached) => {
+    if (isCurrentWindowDetached) {
+      sortedFrames = sortedFrames.filter(frame => !frame.has('pinnedLocation'))
+    }
+    return sortedFrames.map(frame => frame.get('key'))
+  }
+)
 
 function getPinnedFrames (state) {
   return state.get('frames').filter((frame) => frame.get('pinnedLocation'))

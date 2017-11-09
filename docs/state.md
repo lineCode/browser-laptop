@@ -595,7 +595,10 @@ AppStore
     relativeXDragStart: number, // where in the tab did the drag start, used to keep position relative to cursor
     relativeYDragStart: number,
     frame: [Frame], // the frame being dragged, used to attach to other window
-    originatedFromSingleTabWindow: boolean // so we know if we are going to lose the original window when attaching the tab to a new one
+    originatedFromSingleTabWindow: boolean, // so we know if we are going to lose the original window when attaching the tab to a new one
+    detachRequestedWindowId: number, // windowId tab is waiting to detach from
+    attachRequestedWindowId: number, // windowId tab is waiting to attach from
+    dragDetachedWindowId: number, // a window that contains a detached tab
   },
   temporarySiteSettings: {
     // Same as siteSettings but never gets written to disk

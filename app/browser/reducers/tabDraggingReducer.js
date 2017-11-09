@@ -82,6 +82,7 @@ const reducer = (state, action, immutableAction) => {
         state = state.deleteIn([stateKey, 'detachRequestedWindowId'])
         state = state.deleteIn([stateKey, 'displayIndexRequested'])
         state = state.setIn([stateKey, 'currentWindowId'], windowId)
+        state = state.setIn([stateKey, 'dragDetachedWindowId'], windowId)
         setImmediate(() => {
           // move the window so the tab is under the mouse cursor
           const win = BrowserWindow.fromId(windowId)
@@ -94,6 +95,7 @@ const reducer = (state, action, immutableAction) => {
             x: dragSourceData.get('detachedFromTabX') - relativeTabX,
             y: dragSourceData.get('detachedFromTabY')
           })
+          process.stdout.write('anim')
           browserWindowUtil.animateWindowPosition(win, {
             fromPoint: originalTabScreenPosition,
             // TODO include original tab parent bounds and assume new window will have tab group at same pos
@@ -125,6 +127,13 @@ const reducer = (state, action, immutableAction) => {
           break
         }
         process.stdout.write(`DA-${currentWindowId}`)
+        // make sure previous window closes
+        // if previous window had pinned tabs, then it will stay around
+        const previousWindowId = dragSourceData.get('currentWindowId')
+        const previousWin = BrowserWindow.fromId(previousWindowId)
+        if (previousWin && !previousWin.isDestroyed()) {
+          previousWin.close()
+        }
         // can continue processing drag mouse move events
         state = state.deleteIn([stateKey, 'attachRequestedWindowId'])
         state = state.deleteIn([stateKey, 'displayIndexRequested'])

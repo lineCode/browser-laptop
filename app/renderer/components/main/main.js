@@ -60,6 +60,7 @@ const menuBarState = require('../../../common/state/menuBarState')
 const windowState = require('../../../common/state/windowState')
 const updateState = require('../../../common/state/updateState')
 const tabState = require('../../../common/state/tabState')
+const tabDraggingState = require('../../../common/state/tabDraggingState')
 
 // Util
 const _ = require('underscore')

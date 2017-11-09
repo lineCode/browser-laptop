@@ -15,6 +15,7 @@ const BrowserButton = require('../common/browserButton')
 // Utils
 const contextMenus = require('../../../../js/contextMenus')
 const frameStateUtil = require('../../../../js/state/frameStateUtil')
+const tabDraggingState = require('../../../common/state/tabDraggingState')
 
 const globalStyles = require('../styles/global')
 const {theme} = require('../styles/theme')
@@ -50,10 +51,9 @@ class TabsToolbar extends React.Component {
     const currentWindow = state.get('currentWindow')
     const activeFrame = frameStateUtil.getActiveFrame(currentWindow) || Immutable.Map()
     const pinnedTabs = frameStateUtil.getPinnedFrames(currentWindow) || Immutable.List()
-
     const props = {}
     // used in renderer
-    props.hasPinnedTabs = !pinnedTabs.isEmpty()
+    props.hasPinnedTabs = !tabDraggingState.isCurrentWindowDetached(state) && !pinnedTabs.isEmpty()
 
     // used in other functions
     props.activeFrameKey = activeFrame.get('key')
