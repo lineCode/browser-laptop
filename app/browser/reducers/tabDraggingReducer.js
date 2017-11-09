@@ -5,6 +5,7 @@
 const appConstants = require('../../../js/constants/appConstants')
 const { BrowserWindow, screen } = require('electron')
 const tabState = require('../../common/state/tabState')
+const tabDraggingState = require('../../common/state/tabDraggingState')
 const browserWindowUtil = require('../../common/lib/browserWindowUtil')
 const { makeImmutable } = require('../../common/state/immutableUtil')
 const {frameOptsFromFrame} = require('../../../js/state/frameStateUtil')
@@ -49,13 +50,26 @@ const reducer = (state, action, immutableAction) => {
     }
     case appConstants.APP_TAB_DRAG_CHANGE_WINDOW_DISPLAY_INDEX: {
       const sourceTabId = state.getIn([stateKey, 'sourceTabId'])
+      if (sourceTabId == null) {
+        break
+      }
       const destinationDisplayIndex = action.get('destinationDisplayIndex')
       const destinationFrameIndex = action.get('destinationFrameIndex')
-      state = state.mergeIn([stateKey], {
+      const stateUpdate = {
         // cache what we're doing, so we don't repeat request to move tab
         // since it may take longer than it takes to fire mousemove multiple times
         displayIndexRequested: destinationDisplayIndex
-      })
+      }
+      // in case resulting in new component mount (e.g. if tab dragged to new page)
+      // then tell it where mouse is
+      if (action.get('requiresMouseUpdate')) {
+        const currentWindowId = tabState.getWindowId(state, sourceTabId)
+        const win = BrowserWindow.fromId(currentWindowId)
+        const cursorWindowPoint = browserWindowUtil.getWindowClientPointAtCursor(win)
+        stateUpdate.dragWindowClientX = cursorWindowPoint.x
+        stateUpdate.dragWindowClientY = cursorWindowPoint.y
+      }
+      state = state.mergeIn([stateKey], stateUpdate)
       process.stdout.write(`POS-${sourceTabId}->${destinationFrameIndex}`)
       setImmediate(() => {
         process.stdout.write(`.`)

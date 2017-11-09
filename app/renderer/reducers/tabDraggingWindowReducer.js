@@ -7,9 +7,13 @@ const throttle = require('lodash.throttle')
 const appConstants = require('../../../js/constants/appConstants')
 const windowConstants = require('../../../js/constants/windowConstants')
 const appActions = require('../../../js/actions/appActions')
+//const windowActions = require('../../../js/actions/windowActions')
 const frameStateUtil = require('../../../js/state/frameStateUtil')
 const {getCurrentWindowId} = require('../currentWindow')
 const browserWindowUtil = require('../../common/lib/browserWindowUtil')
+const {getSetting} = require('../../../js/settings')
+const settings = require('../../../js/constants/settings')
+const tabDraggingState = require('../../common/state/tabDraggingState')
 
 module.exports = function (windowState, action) {
   switch (action.actionType) {
@@ -20,6 +24,7 @@ module.exports = function (windowState, action) {
     // from initial or destination window
     // translate display index of tab to frame index to move the dragged tab to
     // since the app state unfortunately does not have access to that data
+    // as we should take in to account pinned and tab group page index
     case windowConstants.WINDOW_TAB_DRAG_CHANGE_GROUP_DISPLAY_INDEX:
       let { isPinnedTab, destinationIndex } = action
       // translate to actual index, because it's not really linear under the hood
@@ -27,9 +32,34 @@ module.exports = function (windowState, action) {
       const destinationFrame = frameGroup.get(destinationIndex)
       if (!destinationFrame) {
         console.error(`Tried to drag to frame position ${destinationIndex} which does not exist`)
+        break
       }
       const destinationFrameIndex = frameStateUtil.getFrameIndex(windowState, destinationFrame.get('key'))
-      appActions.tabDragChangeWindowDisplayIndex(destinationIndex, destinationFrameIndex)
+      let pageChange = false
+      // make sure we change displayed tab page for destination index
+      if (!isPinnedTab) {
+        const pageIndex = frameStateUtil.getTabPageIndex(windowState)
+        const tabsPerTabPage = Number(getSetting(settings.TABS_PER_PAGE))
+        const destinationPageIndex = Math.floor(destinationFrameIndex / tabsPerTabPage)
+        if (destinationPageIndex !== pageIndex) {
+          pageChange = true
+          windowState = windowState.deleteIn(['ui', 'tabs', 'previewTabPageIndex'])
+          windowState = windowState.setIn(['ui', 'tabs', 'tabPageIndex'], destinationPageIndex)
+        }
+      }
+      setImmediate(() => {
+        appActions.tabDragChangeWindowDisplayIndex(destinationIndex, destinationFrameIndex, pageChange)
+      })
+      break
+    case windowConstants.WINDOW_TAB_DRAG_PAUSING_FOR_PAGE_CHANGE:
+      windowState = tabDraggingState.window.setPausingForPageIndexChange(windowState, action.pageIndex)
+      break
+    case windowConstants.WINDOW_TAB_DRAG_NOT_PAUSING_FOR_PAGE_CHANGE:
+      windowState = tabDraggingState.window.clearPausingForPageIndexChange(windowState)
+      break
+    case appConstants.APP_TAB_MOVED:
+      console.log('tab moved')
+      // TODO: change tab page to match where dragged tab is
       break
   }
   return windowState

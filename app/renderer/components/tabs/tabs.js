@@ -20,6 +20,7 @@ const windowActions = require('../../../../js/actions/windowActions')
 // State
 const windowState = require('../../../common/state/windowState')
 const tabState = require('../../../common/state//tabState')
+const tabDraggingState = require('../../../common/state//tabDraggingState')
 
 // Constants
 const dragTypes = require('../../../../js/constants/dragTypes')
@@ -126,10 +127,13 @@ class Tabs extends React.Component {
 
     // tab dragging
     props.draggingTabId = tabState.draggingTabId(state)
+    props.pausingToChangePageIndex = tabDraggingState.window.getPausingForPageIndex(currentWindow)
 
     // used in other functions
+    props.firstTabDisplayIndex = startingFrameIndex
     props.fixTabWidth = currentWindow.getIn(['ui', 'tabs', 'fixTabWidth'])
     props.tabPageIndex = currentWindow.getIn(['ui', 'tabs', 'tabPageIndex'])
+    props.totalTabCount = unpinnedTabs.size
     props.dragData = dragData
     props.dragWindowId = dragData.get('windowId')
     props.totalPages = totalPages
@@ -138,6 +142,7 @@ class Tabs extends React.Component {
 
   render () {
     const isPreview = this.props.previewTabPageIndex != null
+    const displayedTabIndex = this.props.previewTabPageIndex != null ? this.props.previewTabPageIndex : this.props.tabPageIndex
     return <div className={css(styles.tabs)}
       data-test-id='tabs'
       onMouseLeave={this.onMouseLeave}
@@ -148,7 +153,7 @@ class Tabs extends React.Component {
             isPreview && styles.tabs__tabStrip_isPreview,
             this.props.shouldAllowWindowDrag && styles.tabs__tabStrip_allowDragging
           )}
-          key={!isPreview ? 'normal' : this.props.previewTabPageIndex}
+          key={displayedTabIndex}
           disableAllAnimations={isPreview}
           data-test-preview-tab={isPreview}
           typeName='span'
@@ -180,10 +185,14 @@ class Tabs extends React.Component {
                 key='prev'
                 iconClass={globalStyles.appIcons.prev}
                 size='21px'
-                custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_prev]}
+                custom={[
+                  styles.tabs__tabStrip__navigation,
+                  styles.tabs__tabStrip__navigation_prev,
+                  this.props.pausingToChangePageIndex === this.props.tabPageIndex - 1 && styles.tabs__tabStrip__navigation_isPausing
+                ]}
                 onClick={this.onPrevPage}
-                />
-              : null
+              />
+            : null
           }
           {
             this.props.currentTabs
@@ -192,10 +201,13 @@ class Tabs extends React.Component {
                   key={`tab-${frame.get('tabId')}-${frame.get('key')}`}
                   frame={frame}
                   isDragging={this.props.draggingTabId === frame.get('tabId')}
-                  displayIndex={tabDisplayIndex}
-                  displayedTabCount={this.props.currentTabs.count()}
-                  singleTab={this.props.currentTabs.count() === 1}
+                  firstTabDisplayIndex={this.props.firstTabDisplayIndex}
+                  displayIndex={tabDisplayIndex + this.props.firstTabDisplayIndex}
+                  displayedTabCount={this.props.currentTabs.size}
+                  totalTabCount={this.props.totalTabCount}
+                  singleTab={this.props.totalTabCount === 1}
                   partOfFullPageSet={this.props.partOfFullPageSet}
+                  tabPageIndex={displayedTabIndex}
                 />
               )
           }
@@ -205,26 +217,35 @@ class Tabs extends React.Component {
                 key='next'
                 iconClass={globalStyles.appIcons.next}
                 size='21px'
-                custom={[styles.tabs__tabStrip__navigation, styles.tabs__tabStrip__navigation_next]}
+                custom={[
+                  styles.tabs__tabStrip__navigation,
+                  styles.tabs__tabStrip__navigation_next,
+                  this.props.pausingToChangePageIndex === this.props.tabPageIndex + 1 && styles.tabs__tabStrip__navigation_isPausing
+                ]}
                 onClick={this.onNextPage}
                 />
               : null
           }
-          <LongPressButton
+          <div
             key='add'
-            className={cx({
-              browserButton: true,
-              navbutton: true,
-              [css(styles.tabs__tabStrip__newTabButton)]: true
-            })}
-          label='+'
-          l10nId='newTabButton'
-          testId='newTabButton'
-            disabled={false}
-            onClick={this.newTab}
-            onLongPress={this.onNewTabLongPress}
-            ListWithTransitionsPreventMoveRight
-          />
+            className={css(
+              styles.tabs__postTabButtons
+            )}
+            ListWithTransitionsPreventMoveRight>
+            <LongPressButton
+              className={cx({
+                browserButton: true,
+                navbutton: true,
+                [css(styles.tabs__tabStrip__newTabButton)]: true
+              })}
+              label='+'
+              l10nId='newTabButton'
+              testId='newTabButton'
+              disabled={false}
+              onClick={this.newTab}
+              onLongPress={this.onNewTabLongPress}
+            />
+          </div>
         </ListWithTransitions>
       ]}
     </div>
@@ -248,7 +269,8 @@ const styles = StyleSheet.create({
     display: 'flex',
     flex: 1,
     zIndex: globalStyles.zindex.zindexTabs,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    position: 'relative'
   },
 
   tabs__tabStrip_isPreview: globalStyles.animations.tabFadeIn,
@@ -260,7 +282,27 @@ const styles = StyleSheet.create({
   tabs__tabStrip__navigation: {
     fontSize: '21px',
     height: globalStyles.spacing.tabsToolbarHeight,
-    lineHeight: globalStyles.spacing.tabsToolbarHeight
+    lineHeight: globalStyles.spacing.tabsToolbarHeight,
+    backgroundColor: '#ddddddaa',
+    zIndex: 400,
+    borderRadius: 0
+  },
+
+  tabs__tabStrip__navigation_isPausing: {
+    backgroundColor: theme.tabsToolbar.button.changingPage.toBackgroundColor,
+    color: theme.tabsToolbar.button.changingPage.color,
+    animationName: [{
+      'from': {
+        backgroundColor: theme.tabsToolbar.button.changingPage.fromBackgroundColor
+      },
+      'to': {
+        backgroundColor: theme.tabsToolbar.button.changingPage.toBackgroundColor
+      }
+    }],
+    animationDuration: '1s',
+    ':hover': {
+      color: theme.tabsToolbar.button.changingPage.color // :-( aphrodite
+    }
   },
 
   tabs__tabStrip__navigation_prev: {
@@ -275,7 +317,10 @@ const styles = StyleSheet.create({
   tabs__tabStrip__navigation_next: {
     paddingLeft: '2px'
   },
-
+  tabs__postTabButtons: {
+    background: '#ddd',
+    zIndex: 400
+  },
   tabs__tabStrip__newTabButton: {
     background: theme.tabsToolbar.button.backgroundColor,
     minWidth: globalStyles.spacing.tabsToolbarHeight,
@@ -286,7 +331,6 @@ const styles = StyleSheet.create({
     WebkitMaskPosition: 'center',
     WebkitMaskSize: '12px 12px',
     WebkitMaskOrigin: 'border',
-
     // no-drag is applied to the button and tab area
     WebkitAppRegion: 'no-drag',
 

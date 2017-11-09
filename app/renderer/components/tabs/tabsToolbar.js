@@ -53,7 +53,7 @@ class TabsToolbar extends React.Component {
     const pinnedTabs = frameStateUtil.getPinnedFrames(currentWindow) || Immutable.List()
     const props = {}
     // used in renderer
-    props.hasPinnedTabs = !tabDraggingState.isCurrentWindowDetached(state) && !pinnedTabs.isEmpty()
+    props.hasPinnedTabs = !tabDraggingState.app.isCurrentWindowDetached(state) && !pinnedTabs.isEmpty()
 
     // used in other functions
     props.activeFrameKey = activeFrame.get('key')

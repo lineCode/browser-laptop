@@ -58,7 +58,7 @@ const getSortedFrames = createSelector(
 
 const getSortedFrameKeys = createSelector(
   // only run next function if sortedFrames is different, or isCurrentWindowDetached changes
-  [ getSortedFrames, tabDraggingState.isCurrentWindowDetached ],
+  [ getSortedFrames, tabDraggingState.app.isCurrentWindowDetached ],
   (sortedFrames, isCurrentWindowDetached) => {
     if (isCurrentWindowDetached) {
       sortedFrames = sortedFrames.filter(frame => !frame.has('pinnedLocation'))

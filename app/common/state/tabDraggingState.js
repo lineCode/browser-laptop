@@ -5,22 +5,72 @@
 const { createSelector } = require('reselect')
 const {getCurrentWindowId} = require('../../renderer/currentWindow')
 
-const stateKey = 'tabDragData'
+const appStateKey = 'tabDragData'
+const windowStateKeyPath = ['ui', 'tabs', 'dragData']
 
-const dragDataSelector = state => state.get(stateKey)
+const dragDataSelector = state => state.get(appStateKey)
 
 const dragDetachedWindowIdSelector = createSelector(
   dragDataSelector,
   dragState => dragState && dragState.get('dragDetachedWindowId')
 )
 
+const windowUIStateSelector = windowState => windowState.get('ui')
+
+const windowTabUIStateSelector = createSelector(
+  windowUIStateSelector,
+  uiState => uiState.get('tabs')
+)
+const windowTabDragDataSelector = createSelector(
+  windowTabUIStateSelector,
+  tabUIState => tabUIState.get('dragData')
+)
+
 const tabDraggingState = {
-  isCurrentWindowDetached: createSelector(
-    // re-run next function only if dragDetachedWindowId changes
-    dragDetachedWindowIdSelector,
-    detachedWindowId =>
-      detachedWindowId && detachedWindowId === getCurrentWindowId()
-  )
+  app: {
+    isCurrentWindowDetached: createSelector(
+      // re-run next function only if dragDetachedWindowId changes
+      dragDetachedWindowIdSelector,
+      detachedWindowId =>
+        detachedWindowId && detachedWindowId === getCurrentWindowId()
+    ),
+
+    isDragging: createSelector(
+      dragDataSelector,
+      dragState => {
+        return dragState != null
+      }
+    ),
+
+    getSourceTabId: createSelector(
+      dragDataSelector,
+      dragState => dragState.get('sourceTabId')
+    ),
+
+    getCurrentWindowId: createSelector(
+      dragDataSelector,
+      dragState => dragState.get('currentWindowId')
+    ),
+
+    delete: state => state.delete(appStateKey)
+  },
+
+  window: {
+
+    getPausingForPageIndex: createSelector(
+      windowTabDragDataSelector,
+      windowDragState => windowDragState && windowDragState.get('pausingForPageIndexChange')
+    ),
+
+    clearDragData: windowState =>
+      windowState.deleteIn(windowStateKeyPath),
+
+    setPausingForPageIndexChange: (windowState, pageIndex) =>
+      windowState.setIn([...windowStateKeyPath, 'pausingForPageIndexChange'], pageIndex),
+
+    clearPausingForPageIndexChange: (windowState) =>
+      windowState.deleteIn([...windowStateKeyPath, 'pausingForPageIndexChange'])
+  }
 }
 
 module.exports = tabDraggingState
