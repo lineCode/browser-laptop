@@ -113,40 +113,40 @@ const reducer = (state, action, immutableAction) => {
       break
     }
     case appConstants.APP_TAB_ATTACHED: {
+      process.stdout.write('-oTA-')
       const dragSourceData = state.get(stateKey)
-      if (!dragSourceData) {
+      if (!dragSourceData || !dragSourceData.has('attachRequestedWindowId')) {
         break
       }
       const sourceTabId = dragSourceData.get('sourceTabId')
-      if (dragSourceData.has('attachRequestedWindowId')) {
-        // check to see if tab is attached to that window yet
-        const currentWindowId = tabState.getWindowId(state, sourceTabId)
-        if (currentWindowId !== dragSourceData.get('attachRequestedWindowId')) {
-          process.stdout.write('WA-')
-          // don't do anything if still waiting for tab attach
-          break
-        }
-        process.stdout.write(`DA-${currentWindowId}`)
-        // make sure previous window closes
-        // if previous window had pinned tabs, then it will stay around
-        const previousWindowId = dragSourceData.get('currentWindowId')
-        const previousWin = BrowserWindow.fromId(previousWindowId)
-        if (previousWin && !previousWin.isDestroyed()) {
-          previousWin.close()
-        }
-        // can continue processing drag mouse move events
-        state = state.deleteIn([stateKey, 'attachRequestedWindowId'])
-        state = state.deleteIn([stateKey, 'displayIndexRequested'])
-        // give the renderer some location information as the mouse may not have moved since attach
-        // it can manually drag the tab to where the mouse is, making any display index changes required
-        const win = BrowserWindow.fromId(currentWindowId)
-        const cursorWindowPoint = browserWindowUtil.getWindowClientPointAtCursor(win)
-        state = state.mergeIn([stateKey], {
-          currentWindowId,
-          dragWindowClientX: cursorWindowPoint.x,
-          dragWindowClientY: cursorWindowPoint.y
-        })
+      // check to see if tab is attached to that window yet
+      const currentWindowId = tabState.getWindowId(state, sourceTabId)
+      const destinationWindowId = dragSourceData.get('attachRequestedWindowId')
+      if (currentWindowId !== destinationWindowId) {
+        process.stdout.write(`WAf${currentWindowId}-t${destinationWindowId}`)
+        // don't do anything if still waiting for tab attach
+        break
       }
+      process.stdout.write(`DA-${currentWindowId}`)
+      // make sure previous window closes
+      // if previous window had pinned tabs, then it will stay around
+      const previousWindowId = dragSourceData.get('currentWindowId')
+      const previousWin = BrowserWindow.fromId(previousWindowId)
+      if (previousWin && !previousWin.isDestroyed()) {
+        previousWin.close()
+      }
+      // can continue processing drag mouse move events
+      state = state.deleteIn([stateKey, 'attachRequestedWindowId'])
+      state = state.deleteIn([stateKey, 'displayIndexRequested'])
+      // give the renderer some location information as the mouse may not have moved since attach
+      // it can manually drag the tab to where the mouse is, making any display index changes required
+      const win = BrowserWindow.fromId(currentWindowId)
+      const cursorWindowPoint = browserWindowUtil.getWindowClientPointAtCursor(win)
+      state = state.mergeIn([stateKey], {
+        currentWindowId,
+        dragWindowClientX: cursorWindowPoint.x,
+        dragWindowClientY: cursorWindowPoint.y
+      })
       break
     }
     case appConstants.APP_TAB_DRAG_SINGLE_TAB_MOVED: {
@@ -224,7 +224,7 @@ const reducer = (state, action, immutableAction) => {
         // have to end the drag event now
         if (dragSourceData.get('originatedFromSingleTabWindow')) {
           // end the drag operation
-          state = state.delete(stateKey)
+          // state = state.delete(stateKey)
         }
         // attach
         setImmediate(() => {
