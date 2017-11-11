@@ -28,6 +28,7 @@ const downloadStates = require('../js/constants/downloadStates')
 
 // State
 const tabState = require('./common/state/tabState')
+const tabDraggingState = require('./common/state/tabDraggingState')
 const windowState = require('./common/state/windowState')
 
 // Utils
@@ -130,7 +131,8 @@ module.exports.cleanPerWindowData = (immutablePerWindowData, isShutdown) => {
 
   // delete the frame index because tabId is per-session
   immutablePerWindowData = immutablePerWindowData.delete('framesInternal')
-
+  // don't save tab drag data
+  immutablePerWindowData = tabDraggingState.window.clearDragData(immutablePerWindowData)
   immutablePerWindowData = deleteImmutablePaths(immutablePerWindowData, [
     // Hide the context menu when we restore.
     'contextMenuDetail',
@@ -149,7 +151,6 @@ module.exports.cleanPerWindowData = (immutablePerWindowData, isShutdown) => {
     ['ui', 'mouseInTitlebar'],
     ['ui', 'mouseInFrame'],
     ['ui', 'dragging'],
-    ['ui', 'tabs', 'dragSourceTabId'],
     ['ui', 'isClearBrowsingDataPanelVisible']
   ])
 
@@ -304,6 +305,9 @@ module.exports.cleanAppData = (immutableData, isShutdown) => {
   try {
     immutableData = immutableData.deleteIn(['ui', 'about', 'preferences', 'recoverySucceeded'])
   } catch (e) {}
+
+  // delete tab dragging data, in case an error happened, so we don't get stuck dragging a tab on next startup
+  tabDraggingState.app.delete(immutableData)
 
   const perWindowStateList = immutableData.get('perWindowState')
   if (perWindowStateList) {
