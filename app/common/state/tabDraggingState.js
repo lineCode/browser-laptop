@@ -19,11 +19,11 @@ const windowUIStateSelector = windowState => windowState.get('ui')
 
 const windowTabUIStateSelector = createSelector(
   windowUIStateSelector,
-  uiState => uiState.get('tabs')
+  uiState => uiState && uiState.get('tabs')
 )
 const windowTabDragDataSelector = createSelector(
   windowTabUIStateSelector,
-  tabUIState => tabUIState.get('dragData')
+  tabUIState => tabUIState && tabUIState.get('dragData')
 )
 
 const tabDraggingState = {
