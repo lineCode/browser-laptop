@@ -160,6 +160,7 @@ class Tab extends React.Component {
     // since we may have attached but not received mouse event yet
     if (this.props.dragWindowClientX && this.props.dragWindowClientY) {
       window.requestAnimationFrame(() => {
+        console.log('manual drag move')
         this.onTabDraggingMouseMove({ clientX: this.props.dragWindowClientX, clientY: this.props.dragWindowClientY })
       })
     }
