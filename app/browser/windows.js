@@ -16,6 +16,7 @@ const {makeImmutable} = require('../common/state/immutableUtil')
 const {getPinnedTabsByWindowId} = require('../common/state/tabState')
 const messages = require('../../js/constants/messages')
 const settings = require('../../js/constants/settings')
+const appConfig = require('../../js/constants/appConfig')
 const config = require('../../js/constants/config')
 const appDispatcher = require('../../js/dispatcher/appDispatcher')
 const platformUtil = require('../common/lib/platformUtil')
@@ -24,6 +25,8 @@ const pinnedSitesState = require('../common/state/pinnedSitesState')
 const {zoomLevel} = require('../common/constants/toolbarUserInterfaceScale')
 
 const isDarwin = platformUtil.isDarwin()
+const isWindows = platformUtil.isWindows()
+
 const {app, BrowserWindow, ipcMain} = electron
 
 // TODO(bridiver) - set window uuid
@@ -376,7 +379,21 @@ const api = {
     const defaultOptions = {
       // hide the window until the window reports that it is rendered
       show: true,
-      fullscreenable: true
+      fullscreenable: true,
+      // Neither a frame nor a titlebar
+      // frame: false,
+      // A frame but no title bar and windows buttons in titlebar 10.10 OSX and up only?
+      titleBarStyle: 'hidden-inset',
+      autoHideMenuBar: isDarwin || getSetting(settings.AUTO_HIDE_MENU),
+      title: appConfig.name,
+      frame: !isWindows,
+      minWidth: 480,
+      minHeight: 300,
+      webPreferences: {
+        // XXX: Do not edit without security review
+        sharedWorker: true,
+        partition: 'default'
+      }
     }
     const windowOptions = Object.assign(
       defaultOptions,

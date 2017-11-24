@@ -22,14 +22,9 @@ const {makeImmutable, isImmutable} = require('../../common/state/immutableUtil')
 const electron = require('electron')
 const BrowserWindow = electron.BrowserWindow
 const firstDefinedValue = require('../../../js/lib/functional').firstDefinedValue
-const appConfig = require('../../../js/constants/appConfig')
 const settings = require('../../../js/constants/settings')
 const getSetting = require('../../../js/settings').getSetting
 
-const platformUtil = require('../../common/lib/platformUtil')
-
-const isDarwin = platformUtil.isDarwin()
-const isWindows = platformUtil.isWindows()
 
 // TODO cleanup all this createWindow crap
 function isModal (browserOpts) {
@@ -144,12 +139,7 @@ function windowDefaults (state) {
     minHeight: 300,
     minModalHeight: 100,
     minModalWidth: 100,
-    windowOffset: 20,
-    webPreferences: {
-      // XXX: Do not edit without security review
-      sharedWorker: true,
-      partition: 'default'
-    }
+    windowOffset: 20
   }
 }
 
@@ -252,20 +242,10 @@ const handleCreateWindowAction = (state, action) => {
   browserOpts.width = browserOpts.width < minWidth ? minWidth : browserOpts.width
   browserOpts.height = browserOpts.height < minHeight ? minHeight : browserOpts.height
 
-  const autoHideMenuBarSetting = isDarwin || getSetting(settings.AUTO_HIDE_MENU)
-
   const windowProps = {
     // smaller min size for "modal" windows
     minWidth,
     minHeight,
-    // Neither a frame nor a titlebar
-    // frame: false,
-    // A frame but no title bar and windows buttons in titlebar 10.10 OSX and up only?
-    titleBarStyle: 'hidden-inset',
-    autoHideMenuBar: autoHideMenuBarSetting,
-    title: appConfig.name,
-    webPreferences: defaults.webPreferences,
-    frame: !isWindows,
     disposition: frameOpts.disposition
   }
 
