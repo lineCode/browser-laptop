@@ -45,7 +45,7 @@ const throttle = require('lodash.throttle')
 
 const DRAG_DETACH_PX_THRESHOLD_INITIAL = 44
 const DRAG_DETACH_PX_THRESHOLD_POSTSORT = 80
-const DRAG_DETACH_PX_THRESHOLD_X = 120
+const DRAG_DETACH_PX_THRESHOLD_X = 60
 const DRAG_DETACH_MS_TIME_BUFFER = 0
 // time to wait before moving page
 const DRAG_PAGEMOVE_MS_TIME_BUFFER = 1000
@@ -534,7 +534,7 @@ class Tab extends React.Component {
       props.dragSingleTab = ownProps.singleTab
       props.dragProcessMoves =
         !dragSourceData.has('attachRequestedWindowId') &&
-        !dragSourceData.has('detachRequestedWindowId') &&
+        !dragSourceData.has('detachedFromWindowId') &&
         props.dragIntendedWindowId === windowId
       props.dragCanDetach = !props.isPinnedTab
       props.relativeXDragStart = dragSourceData.get('relativeXDragStart')

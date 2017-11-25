@@ -31,6 +31,7 @@ const {app, BrowserWindow, ipcMain} = electron
 
 // TODO(bridiver) - set window uuid
 let currentWindows = {}
+let bufferWindowId
 
 const getWindowState = (win) => {
   if (win.isFullScreen()) {
@@ -367,7 +368,9 @@ const api = {
     try {
       setImmediate(() => {
         if (win && !win.isDestroyed()) {
-          win.close()
+          if (win.id !== bufferWindowId) {
+            win.close()
+          }
         }
       })
     } catch (e) {
@@ -375,7 +378,62 @@ const api = {
     }
   },
 
+  setWindowIsDragBuffer: (dragBufferWindowId) => {
+    // TODO: close existing buffer window?
+    bufferWindowId = dragBufferWindowId
+  },
+
+  clearWindowIsDragBuffer: () => {
+    bufferWindowId = null
+  },
+
+  closeBufferWindow: () => {
+    console.log('------------------')
+    console.log('------------------')
+    console.log('------------------')
+    console.log('closeBufferWindow')
+    const win = currentWindows[bufferWindowId]
+    if (win) {
+      console.log('closing')
+      win.close()
+      cleanupWindow(bufferWindowId)
+      bufferWindowId = null
+    }
+    else {
+      console.log('nothing to close')
+    }
+  },
+
+  getDragBufferWindow: () => {
+    const win = currentWindows[bufferWindowId]
+    if (win && !win.isDestroyed()) {
+      return win
+    } else {
+      if (win && win.isDestroyed())
+        console.log('had destroyed buffer window')
+      bufferWindowId = null
+    }
+  },
+
+  createBufferWindow: function (options = { }) {
+    console.log('------------')
+    console.log('-----------')
+    console.log('createBufferWindow')
+    // only if we don't have one already
+    const win = api.getDragBufferWindow()
+    if (!win) {
+      console.log('CREATED')
+      options = Object.assign({ fullscreen: false, show: false }, options)
+      const newWin = api.createWindow(options, null, false, null)
+      bufferWindowId = newWin.id
+    } else {
+      console.log('already had buffer window', win)
+    }
+  },
+
   createWindow: function (windowOptionsIn, parentWindow, maximized, frames, immutableState = Immutable.Map(), hideUntilRendered = true, cb = null) {
+    // TODO: (petemill) consider using a buffer window if scenario is compatible, instead of callers
+    // determining when to use a buffer window and when to create a brand new window
     const defaultOptions = {
       // hide the window until the window reports that it is rendered
       show: true,
