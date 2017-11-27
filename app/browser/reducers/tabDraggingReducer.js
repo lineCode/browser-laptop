@@ -80,8 +80,21 @@ const reducer = (state, action, immutableAction) => {
       break
     }
     case appConstants.APP_TAB_DRAG_CHANGE_WINDOW_DISPLAY_INDEX: {
-      const sourceTabId = state.getIn([stateKey, 'sourceTabId'])
+      const dragSourceData = state.get(stateKey)
+      if (dragSourceData == null) {
+        break
+      }
+      const sourceTabId = dragSourceData.get('sourceTabId')
       if (sourceTabId == null) {
+        break
+      }
+      const attachRequested = dragSourceData.has('attachRequestedWindowId')
+      const detachRequested = dragSourceData.has('detachToRequestedWindowId')
+      if (attachRequested || detachRequested) {
+        break
+      }
+      const tabCurrentWindowId = dragSourceData.get('currentWindowId')
+      if (action.get('senderWindowId') !== tabCurrentWindowId) {
         break
       }
       const destinationDisplayIndex = action.get('destinationDisplayIndex')
