@@ -335,7 +335,7 @@ const reducer = (state, action, immutableAction) => {
               const relativeTabX = dragSourceData.get('relativeXDragStart')
               const relativeClientY = dragSourceData.get('originClientY')
               const newPoint = browserWindowUtil.getWindowPositionForClientPointAtCursor({
-                x: relativeTabX,
+                x: relativeTabX + action.get('tabX'),
                 y: relativeClientY
               })
               bufferWindow.setPosition(newPoint.x, newPoint.y, true)

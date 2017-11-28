@@ -168,6 +168,9 @@ class Tab extends React.Component {
         this.onTabDraggingMouseMove({ clientX: this.props.dragWindowClientX, clientY: this.props.dragWindowClientY })
       })
     }
+    if (this.props.singleTab && this.props.detachedFromTabX) {
+      this.elementRef.style.setProperty('--dragging-delta-x', this.props.detachedFromTabX + 'px')
+    }
   }
 
   removeDragSortHandlers () {
@@ -231,7 +234,7 @@ class Tab extends React.Component {
       if (isOutsideBounds) {
         // start a timeout to see if we're still outside, don't restart if we already started one
         this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
-          appActions.tabDragDetachRequested(e.clientX, this.parentClientRect.top)
+          appActions.tabDragDetachRequested(tabLeft, this.parentClientRect.top)
         }, DRAG_DETACH_MS_TIME_BUFFER)
       } else {
         // we're not outside, so reset the timer
@@ -578,6 +581,7 @@ class Tab extends React.Component {
       props.relativeXDragStart = dragSourceData.get('relativeXDragStart')
       props.dragWindowClientX = dragSourceData.get('dragWindowClientX')
       props.dragWindowClientY = dragSourceData.get('dragWindowClientY')
+      props.detachedFromTabX = dragSourceData.get('detachedFromTabX')
     } else {
       props.isDragging = false
       props.relativeXDragStart = null
