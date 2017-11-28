@@ -285,10 +285,12 @@ class Tab extends React.Component {
   }
 
   clearDragPageIndexMoveTimeout () {
-    window.clearTimeout(this.draggingMoveTabPageTimeout)
-    this.draggingMoveTabPageTimeout = null
-    // let store know we're done waiting
-    windowActions.tabDragNotPausingForPageChange()
+    if (this.draggingMoveTabPageTimeout) {
+      window.clearTimeout(this.draggingMoveTabPageTimeout)
+      this.draggingMoveTabPageTimeout = null
+      // let store know we're done waiting
+      windowActions.tabDragNotPausingForPageChange()
+    }
   }
 
   beginOrContinueTimeoutForDragPageIndexMove (destinationIndex) {
@@ -370,24 +372,30 @@ class Tab extends React.Component {
   //
 
   onMouseLeave (e) {
-    // mouseleave will keep the previewMode
-    // as long as the related target is another tab
-    windowActions.setTabHoverState(this.props.frameKey, false, hasTabAsRelatedTarget(e))
+    if (!this.props.anyTabIsDragging) {
+      // mouseleave will keep the previewMode
+      // as long as the related target is another tab
+      windowActions.setTabHoverState(this.props.frameKey, false, hasTabAsRelatedTarget(e))
+    }
   }
 
   onMouseEnter (e) {
-    // if mouse entered a tab we only trigger a new preview
-    // if user is in previewMode, which is defined by mouse move
-    windowActions.setTabHoverState(this.props.frameKey, true, this.props.previewMode)
-    // In case there's a tab preview happening, cancel the preview
-    // when mouse is over a tab
-    windowActions.setTabPageHoverState(this.props.tabPageIndex, false)
+    if (!this.props.anyTabIsDragging) {
+      // if mouse entered a tab we only trigger a new preview
+      // if user is in previewMode, which is defined by mouse move
+      windowActions.setTabHoverState(this.props.frameKey, true, this.props.previewMode)
+      // In case there's a tab preview happening, cancel the preview
+      // when mouse is over a tab
+      windowActions.setTabPageHoverState(this.props.tabPageIndex, false)
+    }
   }
 
   onMouseMove () {
     // dispatch a message to the store so it can delay
     // and preview the tab based on mouse idle time
-    windowActions.onTabMouseMove(this.props.frameKey)
+    if (!this.props.anyTabIsDragging) {
+      windowActions.onTabMouseMove(this.props.frameKey)
+    }
   }
 
   onAuxClick (e) {
@@ -519,7 +527,9 @@ class Tab extends React.Component {
     props.previewMode = currentWindow.getIn(['ui', 'tabs', 'previewMode'])
 
     // drag related
+
     const dragSourceData = state.get('tabDragData')
+    props.anyTabIsDragging = dragSourceData || false
     props.dragIntendedWindowId = dragSourceData ? dragSourceData.get('currentWindowId') : null
     // needs to know if window will be destroyed when tab is detached
     props.singleTab = ownProps.singleTab

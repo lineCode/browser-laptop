@@ -2,18 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/
 */
-const Immutable = require('immutable')
 const { createSelector } = require('reselect')
 const {getCurrentWindowId} = require('../../renderer/currentWindow')
 
 const appStateKey = 'tabDragData'
 const windowStateKeyPath = ['ui', 'tabs', 'dragData']
 
-const dragDataSelector = state => state.get(appStateKey) || Immutable.Map()
+const dragDataSelector = state => state.get(appStateKey)
 
 const sourceFrameSelector = createSelector(
   dragDataSelector,
-  dragData => dragData.get('frame')
+  dragData => dragData && dragData.get('frame')
 )
 
 const dragDetachedWindowIdSelector = createSelector(
@@ -55,12 +54,12 @@ const tabDraggingState = {
 
     getSourceTabId: createSelector(
       dragDataSelector,
-      dragState => dragState.get('sourceTabId')
+      dragState => dragState && dragState.get('sourceTabId')
     ),
 
     getCurrentWindowId: createSelector(
       dragDataSelector,
-      dragState => dragState.get('currentWindowId')
+      dragState => dragState && dragState.get('currentWindowId')
     ),
 
     sourceGuestInstanceId: createSelector(

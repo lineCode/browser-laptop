@@ -530,6 +530,12 @@ class Main extends React.Component {
     contextMenus.onTabsToolbarContextMenu(this.props.title, this.props.location, undefined, undefined, e)
   }
 
+  setMouseInTitlebar (isInTitlebar) {
+    if (!this.props.isAnyTabDragging) {
+      windowActions.setMouseInTitlebar(isInTitlebar)
+    }
+  }
+
   mergeProps (state, ownProps) {
     const currentWindow = state.get('currentWindow')
     const activeFrame = frameStateUtil.getActiveFrame(currentWindow) || Immutable.Map()
@@ -581,6 +587,7 @@ class Main extends React.Component {
     props.loginRequiredUrl = loginRequiredDetails
       ? urlResolve(loginRequiredDetails.getIn(['request', 'url']), '/')
       : null
+    props.isAnyTabDragging = tabDraggingState.app.isDragging(state)
 
     // used in other functions
     props.menubarSelectedIndex = currentWindow.getIn(['ui', 'menubar', 'selectedIndex'])
@@ -623,8 +630,8 @@ class Main extends React.Component {
             allowDragging: this.props.shouldAllowWindowDrag
           })
         }
-        onMouseEnter={windowActions.setMouseInTitlebar.bind(null, true)}
-        onMouseLeave={windowActions.setMouseInTitlebar.bind(null, false)}
+        onMouseEnter={this.setMouseInTitlebar.bind(this, true)}
+        onMouseLeave={this.setMouseInTitlebar.bind(this, false)}
         >
         <Navigator />
         {
