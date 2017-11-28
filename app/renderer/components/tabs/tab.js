@@ -68,7 +68,7 @@ class Tab extends React.Component {
     this.onObserve = this.onObserve.bind(this)
     this.onTabDraggingMouseMove = this.onTabDraggingMouseMove.bind(this)
     this.onTabClosedWithMouse = this.onTabClosedWithMouse.bind(this)
-    this.onTabDraggingMouseMoveDetectSortChangeThrottled = throttle(this.onTabDraggingMouseMoveDetectSortChange.bind(this), 10)
+    this.onTabDraggingMouseMoveDetectSortChangeThrottled = throttle(this.onTabDraggingMouseMoveDetectSortChange.bind(this), 1)
     this.tabNode = null
   }
 
@@ -204,8 +204,7 @@ class Tab extends React.Component {
     // find when the order should be changed
     // ...but don't if we already have requested it,
     // instead, wait until the order changes
-    if (this.props.draggingDisplayIndexRequested && this.props.draggingDisplayIndexRequested !== this.props.displayIndex) {
-      console.error(`waiting for tab display index change from ${this.props.displayIndex} to ${this.props.draggingDisplayIndexRequested} before proceeding with sort change drag detection`)
+    if (this.suspendOrderChangeUntilUpdate) {
       return
     }
     // assumes all tabs in this group have same width
@@ -263,8 +262,10 @@ class Tab extends React.Component {
         // but at least make sure the tab has moved to the index just next to the threshold
         // (since we might have done a big jump)
         if (isDraggingToNextPage && currentIndex !== lastIndexOnCurrentPage) {
+          this.suspendOrderChangeUntilUpdate = true
           windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, lastIndexOnCurrentPage)
         } else if (isDraggingToPreviousPage && currentIndex !== firstIndexOnCurrentPage) {
+          this.suspendOrderChangeUntilUpdate = true
           windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, firstIndexOnCurrentPage)
         }
         this.beginOrContinueTimeoutForDragPageIndexMove(destinationIndex)
@@ -273,6 +274,7 @@ class Tab extends React.Component {
         // so clear the wait for changing page and move immediately
         this.clearDragPageIndexMoveTimeout()
         // move display index immediately
+        this.suspendOrderChangeUntilUpdate = true
         windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, destinationIndex)
       }
       // a display index has changed, so increase the threshold
@@ -613,6 +615,15 @@ class Tab extends React.Component {
       this.props.displayIndex !== prevProps.displayIndex
     ) {
       this.dragTab({ clientX: this.currentMouseX })
+    }
+
+    // detect if we can re-enable sort detection after a move request
+    // since we only want one move request pending at a time
+    if (this.suspendOrderChangeUntilUpdate) {
+      if (prevProps.displayIndex !== this.props.displayIndex) {
+        // display index changed, so we can resumes
+        this.suspendOrderChangeUntilUpdate = false
+      }
     }
   }
 
