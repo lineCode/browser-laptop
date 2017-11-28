@@ -39,19 +39,14 @@ const reducer = (state, action, immutableAction) => {
         frameLeftWidth
       }))
       if (dragSourceData.get('originatedFromSingleTabWindow') === false) {
+        // TODO: create at app startup
+        const bufferWindow = windows.createBufferWindow()
+        state = state.setIn([stateKey, 'bufferWindowId'], bufferWindow.id)
+        // move buffer window to same pos as source window
         setImmediate(() => {
-          // TODO: create at app startup?
           const [width, height] = sourceWindow.getSize()
-          const existingBufferWindow = windows.getDragBufferWindow()
-          if (existingBufferWindow) {
-            existingBufferWindow.setPosition(winX, winY)
-            existingBufferWindow.setSize(width, height)
-            console.log('----')
-            console.log('THERE WAS AN EXISTING DRAG WINDOW', existingBufferWindow.id)
-            console.log('----')
-          } else {
-            windows.createBufferWindow({ x: winX, y: winY, width, height })
-          }
+          bufferWindow.setPosition(winX, winY)
+          bufferWindow.setSize(width, height)
         })
       }
       // TODO: if linux, send mouse events
@@ -259,7 +254,8 @@ const reducer = (state, action, immutableAction) => {
         state = state.mergeIn([stateKey], {
           dragWindowClientX: cursorWindowPoint.x,
           dragWindowClientY: cursorWindowPoint.y,
-          attachRequestedWindowId: intersectionWindow.id
+          attachRequestedWindowId: intersectionWindow.id,
+          bufferWindowId: currentWindowId
         })
         process.stdout.write(`A-${intersectionWindow.id}`)
         // TODO: windows which only have one tab will be

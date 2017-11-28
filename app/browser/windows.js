@@ -409,8 +409,6 @@ const api = {
     if (win && !win.isDestroyed()) {
       return win
     } else {
-      if (win && win.isDestroyed())
-        console.log('had destroyed buffer window')
       bufferWindowId = null
     }
   },
@@ -420,15 +418,16 @@ const api = {
     console.log('-----------')
     console.log('createBufferWindow')
     // only if we don't have one already
-    const win = api.getDragBufferWindow()
+    let win = api.getDragBufferWindow()
     if (!win) {
       console.log('CREATED')
       options = Object.assign({ fullscreen: false, show: false }, options)
-      const newWin = api.createWindow(options, null, false, null)
-      bufferWindowId = newWin.id
+      win = api.createWindow(options, null, false, null)
+      bufferWindowId = win.id
     } else {
       console.log('already had buffer window', win)
     }
+    return win
   },
 
   createWindow: function (windowOptionsIn, parentWindow, maximized, frames, immutableState = Immutable.Map(), hideUntilRendered = true, cb = null) {
