@@ -899,7 +899,7 @@ const api = {
     }
   },
 
-  moveTo: (state, tabId, frameOpts, browserOpts, toWindowId) => {
+  moveTo: (state, tabId, frameOpts, browserOpts, toWindowId, onReady) => {
     frameOpts = makeImmutable(frameOpts)
     browserOpts = makeImmutable(browserOpts)
     const tab = getWebContents(tabId)
@@ -935,6 +935,10 @@ const api = {
           appActions.newWindow(frameOpts, browserOpts)
         } else {
           appActions.newWebContentsAdded(toWindowId, frameOpts, tabValue)
+        }
+
+        if (onReady) {
+          tab.once('guest-ready', onReady)
         }
 
         // Setting the next active tab for the old window must happen after re-attach of the new tab.

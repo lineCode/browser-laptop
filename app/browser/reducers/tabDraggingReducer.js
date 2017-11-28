@@ -13,7 +13,6 @@ const {frameOptsFromFrame} = require('../../../js/state/frameStateUtil')
 const tabs = require('../tabs')
 const windows = require('../windows')
 
-
 const stateKey = 'tabDragData'
 
 const reducer = (state, action, immutableAction) => {
@@ -318,35 +317,31 @@ const reducer = (state, action, immutableAction) => {
           checkMaximized: false
         }
         const frameOpts = frameOptsFromFrame(dragSourceData.get('frame'))
-        tabs.moveTo(state, sourceTabId, frameOpts, browserOpts, toWindowId)
-        // window should already be sized and positioned
-        // exactly like the window we are detaching from
-        // but we should animate so that the tab is where the mouse is
-        // since there will have been some movement in order to detach
-        if (toWindowId !== -1) {
-          const relativeTabX = dragSourceData.get('relativeXDragStart')
-          const relativeClientY = dragSourceData.get('originClientY')
-          bufferWindow.show()
-          const newPoint = browserWindowUtil.getWindowPositionForClientPointAtCursor({
-            x: relativeTabX,
-            y: relativeClientY
-          })
-          bufferWindow.setPosition(newPoint.x, newPoint.y, false)
-          // const originalTabScreenPosition = browserWindowUtil.getScreenPointAtWindowClientPoint(bufferWindow, {
-          //   x: action.get('tabX') - relativeTabX,
-          //   y: action.get('tabY')
-          // })
-          // process.stdout.write('anim')
-          // browserWindowUtil.animateWindowPosition(bufferWindow, {
-          //   fromPoint: originalTabScreenPosition,
-          //   // TODO include original tab parent bounds and assume new window will have tab group at same pos
-          //   // (pinned tabs?)
-          //   getDestinationPoint: () => browserWindowUtil.getWindowPositionForClientPointAtCursor({
-          //     x: relativeTabX,
-          //     y: relativeClientY
-          //   })
-          // })
-        }
+        tabs.moveTo(state, sourceTabId, frameOpts, browserOpts, toWindowId, () => {
+          // window should already be sized and positioned
+          // exactly like the window we are detaching from
+          // but we should animate so that the tab is where the mouse is
+          // since there will have been some movement in order to detach
+          if (toWindowId !== -1) {
+            // TODO: when cross-window webview guest instance sharing is working, have the buffer window
+            // always show the current dragged guest instance, so it's ready to show instantly
+            // TODO: remove this timeout when the browser window
+            // can more instantly render the active frame
+            // probably when it is single-webview
+            setTimeout(() => {
+              // new window should already be at current window's position
+              // as that is sent on drag start, or attach to new window
+              bufferWindow.show()
+              const relativeTabX = dragSourceData.get('relativeXDragStart')
+              const relativeClientY = dragSourceData.get('originClientY')
+              const newPoint = browserWindowUtil.getWindowPositionForClientPointAtCursor({
+                x: relativeTabX,
+                y: relativeClientY
+              })
+              bufferWindow.setPosition(newPoint.x, newPoint.y, true)
+            }, 50)
+          }
+        })
       })
       // remember that we have asked for a new window,
       // so that we do not try to create again
