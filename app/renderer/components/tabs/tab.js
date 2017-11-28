@@ -202,83 +202,85 @@ class Tab extends React.Component {
       return
     }
     // find when the order should be changed
-    // but don't if we already have requested it,
-    // wait until the order changes
-    if (!this.props.draggingDisplayIndexRequested || this.props.draggingDisplayIndexRequested === this.props.displayIndex) {
-      // assumes all tabs in this group have same width
-      const tabWidth = this.draggingTabWidth
-      const tabLeft = e.clientX - this.parentClientRect.left - this.props.relativeXDragStart
-      const tabRight = tabLeft + tabWidth
-      // detect when to ask for detach
-      if (this.props.dragCanDetach) {
-        // detach threshold is a time thing
-        // If it's been outside of the bounds for X time, then we can detach
-        const isOutsideBounds =
-        e.clientX < 0 - DRAG_DETACH_PX_THRESHOLD_X ||
-        e.clientX > this.parentClientRect.windowWidth + DRAG_DETACH_PX_THRESHOLD_X ||
-        e.clientY < this.parentClientRect.y - this.draggingDetachThreshold ||
-        e.clientY > this.parentClientRect.y + this.parentClientRect.height + this.draggingDetachThreshold
-        if (isOutsideBounds) {
-          // start a timeout to see if we're still outside, don't restart if we already started one
-          this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
-            appActions.tabDragDetachRequested(e.clientX, this.parentClientRect.top)
-          }, DRAG_DETACH_MS_TIME_BUFFER)
-        } else {
-          // we're not outside, so reset the timer
-          if (this.draggingDetachTimeout) {
-            window.clearTimeout(this.draggingDetachTimeout)
-            this.draggingDetachTimeout = null
-          }
+    // ...but don't if we already have requested it,
+    // instead, wait until the order changes
+    if (this.props.draggingDisplayIndexRequested && this.props.draggingDisplayIndexRequested !== this.props.displayIndex) {
+      console.error(`waiting for tab display index change from ${this.props.displayIndex} to ${this.props.draggingDisplayIndexRequested} before proceeding with sort change drag detection`)
+      return
+    }
+    // assumes all tabs in this group have same width
+    const tabWidth = this.draggingTabWidth
+    const tabLeft = e.clientX - this.parentClientRect.left - this.props.relativeXDragStart
+    const tabRight = tabLeft + tabWidth
+    // detect when to ask for detach
+    if (this.props.dragCanDetach) {
+      // detach threshold is a time thing
+      // If it's been outside of the bounds for X time, then we can detach
+      const isOutsideBounds =
+      e.clientX < 0 - DRAG_DETACH_PX_THRESHOLD_X ||
+      e.clientX > this.parentClientRect.windowWidth + DRAG_DETACH_PX_THRESHOLD_X ||
+      e.clientY < this.parentClientRect.y - this.draggingDetachThreshold ||
+      e.clientY > this.parentClientRect.y + this.parentClientRect.height + this.draggingDetachThreshold
+      if (isOutsideBounds) {
+        // start a timeout to see if we're still outside, don't restart if we already started one
+        this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
+          appActions.tabDragDetachRequested(e.clientX, this.parentClientRect.top)
+        }, DRAG_DETACH_MS_TIME_BUFFER)
+      } else {
+        // we're not outside, so reset the timer
+        if (this.draggingDetachTimeout) {
+          window.clearTimeout(this.draggingDetachTimeout)
+          this.draggingDetachTimeout = null
         }
       }
-      const lastTabIndex = this.props.totalTabCount - 1
-      const currentIndex = this.props.displayIndex
-      // calculate destination index to move tab to
-      // based on coords of dragged tab
-      let destinationIndex
-      if (tabLeft < 0 - DRAG_PAGEMOVE_PX_THRESHOLD) {
-        destinationIndex = Math.max(0, currentIndex - 1)
-      } else if (tabRight > this.parentClientRect.width + DRAG_PAGEMOVE_PX_THRESHOLD) {
-        destinationIndex = Math.min(lastTabIndex, currentIndex + 1)
-      } else {
-        destinationIndex = Math.max(
-          0,
-          Math.min(this.props.totalTabCount - 1, this.props.firstTabDisplayIndex + Math.floor((tabLeft + (tabWidth / 2)) / tabWidth))
-        )
-      }
-      // handle any destination index change by dispatching actions to store
-      if (currentIndex !== destinationIndex) {
-        // only allow to drag to a different page if we hang here for a while
-        const lastIndexOnCurrentPage = (this.props.firstTabDisplayIndex + this.props.displayedTabCount) - 1
-        const firstIndexOnCurrentPage = this.props.firstTabDisplayIndex
-        const isDraggingToPreviousPage = destinationIndex < firstIndexOnCurrentPage
-        const isDraggingToNextPage = destinationIndex > lastIndexOnCurrentPage
-        const isDraggingToDifferentPage = isDraggingToPreviousPage || isDraggingToNextPage
-        if (isDraggingToDifferentPage) {
-          // dragging to a different page
-          // make sure the user wants to change page by enforcing a pause
-          // but at least make sure the tab has moved to the index just next to the threshold
-          // (since we might have done a big jump)
-          if (isDraggingToNextPage && currentIndex !== lastIndexOnCurrentPage) {
-            windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, lastIndexOnCurrentPage)
-          } else if (isDraggingToPreviousPage && currentIndex !== firstIndexOnCurrentPage) {
-            windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, firstIndexOnCurrentPage)
-          }
-          this.beginOrContinueTimeoutForDragPageIndexMove(destinationIndex)
-        } else {
-          // dragging to a different index within the same page,
-          // so clear the wait for changing page and move immediately
-          this.clearDragPageIndexMoveTimeout()
-          // move display index immediately
-          windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, destinationIndex)
+    }
+    const lastTabIndex = this.props.totalTabCount - 1
+    const currentIndex = this.props.displayIndex
+    // calculate destination index to move tab to
+    // based on coords of dragged tab
+    let destinationIndex
+    if (tabLeft < 0 - DRAG_PAGEMOVE_PX_THRESHOLD) {
+      destinationIndex = Math.max(0, currentIndex - 1)
+    } else if (tabRight > this.parentClientRect.width + DRAG_PAGEMOVE_PX_THRESHOLD) {
+      destinationIndex = Math.min(lastTabIndex, currentIndex + 1)
+    } else {
+      destinationIndex = Math.max(
+        0,
+        Math.min(this.props.totalTabCount - 1, this.props.firstTabDisplayIndex + Math.floor((tabLeft + (tabWidth / 2)) / tabWidth))
+      )
+    }
+    // handle any destination index change by dispatching actions to store
+    if (currentIndex !== destinationIndex) {
+      // only allow to drag to a different page if we hang here for a while
+      const lastIndexOnCurrentPage = (this.props.firstTabDisplayIndex + this.props.displayedTabCount) - 1
+      const firstIndexOnCurrentPage = this.props.firstTabDisplayIndex
+      const isDraggingToPreviousPage = destinationIndex < firstIndexOnCurrentPage
+      const isDraggingToNextPage = destinationIndex > lastIndexOnCurrentPage
+      const isDraggingToDifferentPage = isDraggingToPreviousPage || isDraggingToNextPage
+      if (isDraggingToDifferentPage) {
+        // dragging to a different page
+        // make sure the user wants to change page by enforcing a pause
+        // but at least make sure the tab has moved to the index just next to the threshold
+        // (since we might have done a big jump)
+        if (isDraggingToNextPage && currentIndex !== lastIndexOnCurrentPage) {
+          windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, lastIndexOnCurrentPage)
+        } else if (isDraggingToPreviousPage && currentIndex !== firstIndexOnCurrentPage) {
+          windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, firstIndexOnCurrentPage)
         }
-        // a display index has changed, so increase the threshold
-        // required for detach (different axis of movement)
-        this.draggingDetachThreshold = DRAG_DETACH_PX_THRESHOLD_POSTSORT
+        this.beginOrContinueTimeoutForDragPageIndexMove(destinationIndex)
       } else {
-        // no longer want to change tab page
+        // dragging to a different index within the same page,
+        // so clear the wait for changing page and move immediately
         this.clearDragPageIndexMoveTimeout()
+        // move display index immediately
+        windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, destinationIndex)
       }
+      // a display index has changed, so increase the threshold
+      // required for detach (different axis of movement)
+      this.draggingDetachThreshold = DRAG_DETACH_PX_THRESHOLD_POSTSORT
+    } else {
+      // no longer want to change tab page
+      this.clearDragPageIndexMoveTimeout()
     }
   }
 
