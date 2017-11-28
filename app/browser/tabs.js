@@ -7,6 +7,7 @@ const windowActions = require('../../js/actions/windowActions')
 const tabActions = require('../common/actions/tabActions')
 const config = require('../../js/constants/config')
 const Immutable = require('immutable')
+const { shouldDebugTabEvents } = require('../cmdLine')
 const tabState = require('../common/state/tabState')
 const windowState = require('../common/state/windowState')
 const {app, BrowserWindow, extensions, session, ipcMain} = require('electron')
@@ -517,6 +518,18 @@ const api = {
         return
       }
       const tabId = tab.getId()
+
+      // command-line flag --debug-tab-events
+      if (shouldDebugTabEvents) {
+        // output console log for each event the tab receives
+        const oldEmit = tab.emit
+        tab.emit = function () {
+          const eventTabId = tab && !tab.isDestroyed() ? tab.getId() : `probably ${tabId}`
+          console.log(`Tab [${eventTabId}] event '${arguments[0]}'`)
+          oldEmit.apply(tab, arguments)
+        }
+      }
+
       tab.on('did-start-navigation', (e, navigationHandle) => {
         if (!tab.isDestroyed() && navigationHandle.isValid() && navigationHandle.isInMainFrame()) {
           const controller = tab.controller()
