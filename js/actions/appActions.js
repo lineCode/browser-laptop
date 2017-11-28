@@ -1184,6 +1184,8 @@ const appActions = {
         originClientY,
         originScreenX,
         originScreenY,
+        tabWidth,
+        tabHeight,
         relativeXDragStart,
         relativeYDragStart,
         frame,

@@ -57,6 +57,10 @@ function translateEventFromSendMouseMoveInput (receivedEvent) {
     : receivedEvent
 }
 
+function isTabElement (element) {
+  return element && element.getAttribute('data-tab-area')
+}
+
 class Tab extends React.Component {
   constructor (props) {
     super(props)
@@ -207,10 +211,14 @@ class Tab extends React.Component {
     if (this.suspendOrderChangeUntilUpdate) {
       return
     }
-    // assumes all tabs in this group have same width
-    const tabWidth = this.draggingTabWidth
+    // assumes all (non-dragging) tabs in this group have same width
+    // we need to consider the current drag tab width, and the width of the other tabs
+    // as they may differ due to using the width of the tab from the source window
+    // during a drag operation
+    const dragTabWidth = this.draggingTabWidth
+    const tabWidth = this.nonDraggingTabWidth || this.draggingTabWidth
     const tabLeft = e.clientX - this.parentClientRect.left - this.props.relativeXDragStart
-    const tabRight = tabLeft + tabWidth
+    const tabRight = tabLeft + dragTabWidth
     // detect when to ask for detach
     if (this.props.dragCanDetach) {
       // detach threshold is a time thing
@@ -243,9 +251,13 @@ class Tab extends React.Component {
     } else if (tabRight > this.parentClientRect.width + DRAG_PAGEMOVE_PX_THRESHOLD) {
       destinationIndex = Math.min(lastTabIndex, currentIndex + 1)
     } else {
+      // calculate which index within the group a tab would be if it started at
+      // the left edge of the dragged tab (do not consider the dragged tab width since it can be different)
+      const groupIndexOfTabLeft = Math.floor((tabLeft - (tabWidth / 2)) / tabWidth) + 1
+      // make sure the index we want to move the tab is within the allowed range
       destinationIndex = Math.max(
         0,
-        Math.min(this.props.totalTabCount - 1, this.props.firstTabDisplayIndex + Math.floor((tabLeft + (tabWidth / 2)) / tabWidth))
+        Math.min(this.props.totalTabCount - 1, this.props.firstTabDisplayIndex + groupIndexOfTabLeft)
       )
     }
     // handle any destination index change by dispatching actions to store
@@ -366,6 +378,17 @@ class Tab extends React.Component {
    * then tab page changes
    */
   evaluateDraggingTabWidth () {
+    if (!this.elementRef) {
+      return
+    }
+    const sibling = isTabElement(this.elementRef.nextElementSibling)
+      ? this.elementRef.nextElementSibling
+      : isTabElement(this.elementRef.previousElementSibling)
+        ? this.elementRef.previousElementSibling
+        : null
+    if (sibling) {
+      this.nonDraggingTabWidth = sibling.getBoundingClientRect().width
+    }
     this.draggingTabWidth = this.elementRef.getBoundingClientRect().width
   }
 
@@ -543,6 +566,7 @@ class Tab extends React.Component {
     ) {
       // make sure we're setup
       props.isDragging = true
+      props.tabWidth = dragSourceData.get('tabWidth')
       props.dragOriginatedThisWindow = dragSourceData.get('originalWindowId') === windowId
       props.draggingDisplayIndexRequested = dragSourceData.get('displayIndexRequested')
       props.dragSingleTab = ownProps.singleTab
