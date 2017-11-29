@@ -85,16 +85,16 @@ class Tab extends React.Component {
   // Only run by source window
   //
 
-  /// Setup this tab window instance as the dragging source
-  /// moving the tab and orchestrating order changes
-  /// as well as dispatching events to the store so it can
-  /// handle detach / attach
-  /// Because this drag event starts in this window's web context,
-  /// it will receive locations even outside of the window.
-  /// If we start monitoring mousemove events in another window, it wouldn't
-  /// get position updates when the mouse moves outside the window, which we need
-  /// so we use the event instances started from this window to control the movement
-  /// in any other window the tab may have been dragged to
+  // Setup this tab window instance as the dragging source
+  // moving the tab and orchestrating order changes
+  // as well as dispatching events to the store so it can
+  // handle detach / attach
+  // Because this drag event starts in this window's web context,
+  // it will receive locations even outside of the window.
+  // If we start monitoring mousemove events in another window, it wouldn't
+  // get position updates when the mouse moves outside the window, which we need
+  // so we use the event instances started from this window to control the movement
+  // in any other window the tab may have been dragged to
   onDragStart (e) {
     e.preventDefault()
     const dragElementBounds = e.target.getBoundingClientRect()
@@ -135,39 +135,8 @@ class Tab extends React.Component {
     // initial distance that has to be travelled outside the tab bar in order to detach the tab
     // (increases after some sorting has happened, as the user may be more 'relaxed' with the mouse)
     this.draggingDetachThreshold = DRAG_DETACH_PX_THRESHOLD_INITIAL
-    // save parent position in order to know where first-tab position is, and also the bounds for detaching
-    // this is cached and re-evaluated whenever the drag operation starts (or is attached to a different window)
-    // if, for some reason, the parent position can change during a drag operation, then this should be re-evaluated
-    // more often
-    // but only consider tabs within the parent, allowing us to have non sortable / draggable elements inside the parent
-    // ...e.g. buttons
-    const allDraggableTabs = this.elementRef.parentElement.querySelectorAll('[data-draggable-tab]')
-    if (allDraggableTabs.length) {
-      const firstTab = allDraggableTabs.item(0)
-      const lastTab = allDraggableTabs.item(allDraggableTabs.length - 1)
-      const firstTabRect = firstTab.getBoundingClientRect()
-      const lastTabRect = firstTab === lastTab ? firstTabRect : lastTab.getBoundingClientRect()
-      this.parentClientRect = {
-        x: firstTabRect.x,
-        y: firstTabRect.y,
-        left: firstTabRect.left,
-        top: firstTabRect.top,
-        width: lastTabRect.x + lastTabRect.width - firstTabRect.x,
-        height: firstTabRect.height,
-        offsetDifference: firstTabRect.x - this.elementRef.parentElement.getBoundingClientRect().x,
-        windowWidth: document.body.clientWidth
-      }
-    }
 
     window.addEventListener('mousemove', this.onTabDraggingMouseMove)
-    // fire sort handler manually with the first update, if we have one
-    // since we may have attached but not received mouse event yet
-    if (this.props.dragWindowClientX && this.props.dragWindowClientY) {
-      window.requestAnimationFrame(() => {
-        console.log('manual drag move')
-        this.onTabDraggingMouseMove({ clientX: this.props.dragWindowClientX, clientY: this.props.dragWindowClientY })
-      })
-    }
     if (this.props.singleTab && this.props.detachedFromTabX) {
       this.elementRef.style.setProperty('--dragging-delta-x', this.props.detachedFromTabX + 'px')
     }
@@ -178,6 +147,8 @@ class Tab extends React.Component {
     this.parentClientRect = null
     this.singleTabPosition = null
     this.currentWindowId = null
+    this.suspendOrderChangeUntilUpdate = null
+    this.whenProcessMoveE = null
     window.removeEventListener('mousemove', this.onTabDraggingMouseMove)
     if (this.draggingDetachTimeout) {
       window.clearTimeout(this.draggingDetachTimeout)
@@ -188,13 +159,15 @@ class Tab extends React.Component {
 
   onTabDraggingMouseMove (e) {
     e = translateEventFromSendMouseMoveInput(e)
+    if (!this.props.singleTab) {
+      // move tab with mouse (rAF - smooth)
+      this.dragTabMouseMoveFrame = this.dragTabMouseMoveFrame || window.requestAnimationFrame(this.dragTab.bind(this, e))
+    }
     if (this.props.dragProcessMoves) {
       if (!this.props.dragSingleTab) {
         // don't continue if we're about to detach
         // we'll soon get the props change to remove mouse event listeners
         if (!this.hasRequestedDetach) {
-          // move tab with mouse (rAF - smooth)
-          this.dragTabMouseMoveFrame = this.dragTabMouseMoveFrame || window.requestAnimationFrame(this.dragTab.bind(this, e))
           // change order of tabs when passed boundaries (debounced - helps being smooth)
           this.onTabDraggingMouseMoveDetectSortChangeThrottled(e)
         }
@@ -221,7 +194,6 @@ class Tab extends React.Component {
     const dragTabWidth = this.draggingTabWidth
     const tabWidth = this.nonDraggingTabWidth || this.draggingTabWidth
     const tabLeft = e.clientX - this.parentClientRect.left - this.props.relativeXDragStart
-    const tabRight = tabLeft + dragTabWidth
     // detect when to ask for detach
     if (this.props.dragCanDetach) {
       // detach threshold is a time thing
@@ -234,8 +206,10 @@ class Tab extends React.Component {
       if (isOutsideBounds) {
         // start a timeout to see if we're still outside, don't restart if we already started one
         this.draggingDetachTimeout = this.draggingDetachTimeout || window.setTimeout(() => {
+          this.hasRequestedDetach = true
           appActions.tabDragDetachRequested(tabLeft, this.parentClientRect.top)
         }, DRAG_DETACH_MS_TIME_BUFFER)
+        return
       } else {
         // we're not outside, so reset the timer
         if (this.draggingDetachTimeout) {
@@ -244,27 +218,39 @@ class Tab extends React.Component {
         }
       }
     }
-    const lastTabIndex = this.props.totalTabCount - 1
-    const currentIndex = this.props.displayIndex
     // calculate destination index to move tab to
     // based on coords of dragged tab
-    let destinationIndex
+    const destinationIndex = this.detectDragIndexPosition(
+      tabWidth,
+      dragTabWidth,
+      tabLeft
+    )
+    this.dragChangeIndex(destinationIndex)
+  }
+
+  detectDragIndexPosition (tabWidth, dragTabWidth, tabLeft) {
+    const lastIndex = this.props.totalTabCount - 1
+    const currentIndex = this.props.displayIndex
+    const tabRight = tabLeft + dragTabWidth
     if (tabLeft < 0 - DRAG_PAGEMOVE_PX_THRESHOLD) {
-      destinationIndex = Math.max(0, currentIndex - 1)
+      return Math.max(0, currentIndex - 1)
     } else if (tabRight > this.parentClientRect.width + DRAG_PAGEMOVE_PX_THRESHOLD) {
-      destinationIndex = Math.min(lastTabIndex, currentIndex + 1)
+      return Math.min(lastIndex, currentIndex + 1)
     } else {
       // calculate which index within the group a tab would be if it started at
       // the left edge of the dragged tab (do not consider the dragged tab width since it can be different)
       const groupIndexOfTabLeft = Math.floor((tabLeft - (tabWidth / 2)) / tabWidth) + 1
       // make sure the index we want to move the tab is within the allowed range
-      destinationIndex = Math.max(
+      return Math.max(
         0,
         Math.min(this.props.totalTabCount - 1, this.props.firstTabDisplayIndex + groupIndexOfTabLeft)
       )
     }
+  }
+
+  dragChangeIndex (destinationIndex) {
     // handle any destination index change by dispatching actions to store
-    if (currentIndex !== destinationIndex) {
+    if (this.props.displayIndex !== destinationIndex) {
       // only allow to drag to a different page if we hang here for a while
       const lastIndexOnCurrentPage = (this.props.firstTabDisplayIndex + this.props.displayedTabCount) - 1
       const firstIndexOnCurrentPage = this.props.firstTabDisplayIndex
@@ -276,10 +262,10 @@ class Tab extends React.Component {
         // make sure the user wants to change page by enforcing a pause
         // but at least make sure the tab has moved to the index just next to the threshold
         // (since we might have done a big jump)
-        if (isDraggingToNextPage && currentIndex !== lastIndexOnCurrentPage) {
+        if (isDraggingToNextPage && this.props.displayIndex !== lastIndexOnCurrentPage) {
           this.suspendOrderChangeUntilUpdate = true
           windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, lastIndexOnCurrentPage)
-        } else if (isDraggingToPreviousPage && currentIndex !== firstIndexOnCurrentPage) {
+        } else if (isDraggingToPreviousPage && this.props.displayIndex !== firstIndexOnCurrentPage) {
           this.suspendOrderChangeUntilUpdate = true
           windowActions.tabDragChangeGroupDisplayIndex(this.props.isPinnedTab, firstIndexOnCurrentPage)
         }
@@ -323,12 +309,12 @@ class Tab extends React.Component {
   }
 
   dragTab (e) {
-    if (!this.elementRef || !this.parentClientRect) {
-      return
-    }
     // cache just in case we need to force the tab to move to the mouse cursor
     // without a mousemove event
     this.currentMouseX = e.clientX
+    if (!this.elementRef || !this.parentClientRect) {
+      return
+    }
     this.dragTabMouseMoveFrame = null
     const relativeLeft = this.props.relativeXDragStart
     // include any gap between parent edge and first tab
@@ -393,6 +379,30 @@ class Tab extends React.Component {
       this.nonDraggingTabWidth = sibling.getBoundingClientRect().width
     }
     this.draggingTabWidth = this.elementRef.getBoundingClientRect().width
+    // save parent position in order to know where first-tab position is, and also the bounds for detaching
+    // this is cached and re-evaluated whenever the drag operation starts (or is attached to a different window)
+    // if, for some reason, the parent position can change during a drag operation, then this should be re-evaluated
+    // more often
+    // but only consider tabs within the parent, allowing us to have non sortable / draggable elements inside the parent
+    // ...e.g. buttons
+    let tabsSelector = '[data-draggable-tab]'
+    const allDraggableTabs = this.elementRef.parentElement.querySelectorAll(tabsSelector)
+    if (allDraggableTabs.length) {
+      const firstTab = allDraggableTabs.item(0)
+      const lastTab = allDraggableTabs.item(allDraggableTabs.length - 1)
+      const firstTabRect = firstTab.getBoundingClientRect()
+      const lastTabRect = firstTab === lastTab ? firstTabRect : lastTab.getBoundingClientRect()
+      this.parentClientRect = {
+        x: firstTabRect.x,
+        y: firstTabRect.y,
+        left: firstTabRect.left,
+        top: firstTabRect.top,
+        width: lastTabRect.x + lastTabRect.width - firstTabRect.x,
+        height: firstTabRect.height,
+        offsetDifference: firstTabRect.x - this.elementRef.parentElement.getBoundingClientRect().x,
+        windowWidth: document.body.clientWidth
+      }
+    }
   }
 
   //
@@ -408,7 +418,15 @@ class Tab extends React.Component {
   }
 
   onMouseEnter (e) {
-    if (!this.props.anyTabIsDragging) {
+    if (this.props.anyTabIsDragging) {
+      // report mouse over a tab that is not in the current window
+      // TODO: focus window when dragging and mouseenter the whole window
+      const windowId = getCurrentWindowId()
+      if (!this.props.isPinned && this.props.dragIntendedWindowId !== windowId) {
+        console.log('window tab mouse enter')
+        appActions.tabDragMouseOverOtherWindowTab(this.props.frameIndex)
+      }
+    } else {
       // if mouse entered a tab we only trigger a new preview
       // if user is in previewMode, which is defined by mouse move
       windowActions.setTabHoverState(this.props.frameKey, true, this.props.previewMode)
@@ -495,6 +513,7 @@ class Tab extends React.Component {
     this.observer.observe(this.tabSentinel)
 
     this.tabNode.addEventListener('auxclick', this.onAuxClick.bind(this))
+    console.log('tab mounted', this.props.tabId, 'drag?', this.props.isDragging, 'outside flow?', this.props.isDragging && !this.props.singleTab && !this.props.dragProcessMoves)
 
     // if a new tab is already dragging,
     // that means that it has been attached from another window,
@@ -503,8 +522,18 @@ class Tab extends React.Component {
     // and let the store know when the tab should move to another
     // tab's position
     if (this.props.isDragging) {
-        // setup tab moving
+      // setup tab moving
       this.attachDragSortHandlers()
+      // if mount, dragging, and not single tab, then it is either
+      // an attach to the window
+      // or a change in page
+      if (!this.props.singleTab && this.props.dragWindowClientX) {
+        // the tab will attach at the correct index, but the mouse may have moved since the attach was requested,
+        // so make sure we move the tab to the mouse position by forwarding the event
+        window.requestAnimationFrame(() => {
+          this.onTabDraggingMouseMove({ clientX: this.props.dragWindowClientX, clientY: this.props.dragWindowClientY })
+        })
+      }
     }
   }
 
@@ -553,9 +582,8 @@ class Tab extends React.Component {
     // used in other functions
     props.tabId = tabId
     props.previewMode = currentWindow.getIn(['ui', 'tabs', 'previewMode'])
-
+    props.frameIndex = frame.get('index')
     // drag related
-
     const dragSourceData = state.get('tabDragData')
     props.anyTabIsDragging = dragSourceData || false
     props.dragIntendedWindowId = dragSourceData ? dragSourceData.get('currentWindowId') : null
@@ -564,8 +592,7 @@ class Tab extends React.Component {
     const windowId = getCurrentWindowId()
     if (
       dragSourceData &&
-      tabState.isTabDragging(state, tabId) &&
-      tabState.getWindowId(state, tabId) === windowId
+      tabState.isTabDragging(state, tabId)
     ) {
       // make sure we're setup
       props.isDragging = true
@@ -573,10 +600,12 @@ class Tab extends React.Component {
       props.dragOriginatedThisWindow = dragSourceData.get('originalWindowId') === windowId
       props.draggingDisplayIndexRequested = dragSourceData.get('displayIndexRequested')
       props.dragSingleTab = ownProps.singleTab
+      // TODO: this is probably not needed anymore, but did prevent some crashes previously
       props.dragProcessMoves =
         !dragSourceData.has('attachRequestedWindowId') &&
         !dragSourceData.has('detachedFromWindowId') &&
-        props.dragIntendedWindowId === windowId
+        props.dragIntendedWindowId === windowId &&
+        tabState.getWindowId(state, tabId) === windowId
       props.dragCanDetach = !props.isPinnedTab
       props.relativeXDragStart = dragSourceData.get('relativeXDragStart')
       props.dragWindowClientX = dragSourceData.get('dragWindowClientX')
@@ -620,7 +649,7 @@ class Tab extends React.Component {
       })
     }
 
-    if (this.props.isDragging && !prevProps.isDragging) {
+    if (this.props.isDragging && prevProps.isDragging === false) {
       // setup event to move tab DOM element along with
       // mousemove and let the store know when it should
       // move the sort position of the tab.
@@ -628,30 +657,43 @@ class Tab extends React.Component {
       // is firing the event to the store which will check
       // for detach / attach to windows
       this.attachDragSortHandlers()
+      // fire sort handler manually with the first update, if we have one
+      // since we may have attached but not received mouse event yet
+      if (this.props.dragWindowClientX && this.props.dragWindowClientY) {
+        window.requestAnimationFrame(() => {
+          this.onTabDraggingMouseMove({ clientX: this.props.dragWindowClientX, clientY: this.props.dragWindowClientY })
+        })
+      }
     } else if (prevProps.isDragging && !this.props.isDragging) {
       // tear-down tab moving
       this.removeDragSortHandlers()
     } else if (this.props.isDragging && this.props.tabPageIndex !== prevProps.tabPageIndex) {
+      // handle changing page index during a drag
       // reevaluate anything that's changed when tab is dragged to a new page
       this.draggingTabWidth = null
       window.requestAnimationFrame(() => this.evaluateDraggingTabWidth())
     }
 
-    // detect sort order change during drag
-    if (
-      this.props.dragProcessMoves && this.currentMouseX != null &&
-      this.props.displayIndex !== prevProps.displayIndex
-    ) {
-      this.dragTab({ clientX: this.currentMouseX })
-    }
-
-    // detect if we can re-enable sort detection after a move request
-    // since we only want one move request pending at a time
-    if (this.suspendOrderChangeUntilUpdate) {
-      if (prevProps.displayIndex !== this.props.displayIndex) {
-        // display index changed, so we can resumes
-        this.suspendOrderChangeUntilUpdate = false
+    // mid-drag index change (due to dragging to a new position)
+    if (this.props.isDragging && this.props.displayIndex !== prevProps.displayIndex) {
+      // allow something to queue an event for after the index change happens
+      // e.g. to preventing layout thrashing
+      if (this.onNextDragIndexChange) {
+        const fn = this.onNextDragIndexChange
+        this.onNextDragIndexChange = null
+        fn()
       }
+      // re-calculate the translation we need to apply to the element
+      // after an index change, since the element position will be new
+      // but the mouse may have moved the tab away from its new location
+      if (this.currentMouseX) {
+        this.dragTab({ clientX: this.currentMouseX })
+        this.currentMouseX = null
+      }
+      // we pause the mousemove handler from being able to calculate new index based
+      // on drag position, whilst we're waiting for an existing index change
+      // Now that the index has changed, we can resume
+      this.suspendOrderChangeUntilUpdate = false
     }
   }
 
@@ -665,6 +707,8 @@ class Tab extends React.Component {
     }
     return <div
       data-tab-area
+      data-prevent-transitions={this.props.isDragging}
+      data-is-dragging={this.props.isDragging}
       className={css(
         styles.tabArea,
         this.props.isDragging && styles.tabArea_isDragging,

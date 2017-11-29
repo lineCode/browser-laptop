@@ -200,7 +200,6 @@ class Tabs extends React.Component {
                 <Tab
                   key={`tab-${frame.get('tabId')}-${frame.get('key')}`}
                   frame={frame}
-                  isDragging={this.props.draggingTabId === frame.get('tabId')}
                   firstTabDisplayIndex={this.props.firstTabDisplayIndex}
                   displayIndex={tabDisplayIndex + this.props.firstTabDisplayIndex}
                   displayedTabCount={this.props.currentTabs.size}

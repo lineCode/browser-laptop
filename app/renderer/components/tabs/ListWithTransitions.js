@@ -62,9 +62,12 @@ class ListWithTransitions extends Component {
     let staggeredAllowed = true
     // animate each child, if neccessary
     for (const child of this.state.children) {
-      // manual prop for figuring out excluding children from animation
-      if (child.props.isDragging) continue
       const childData = this.getChildData(child.key)
+      // manual override for child element to prevent transitions
+      // e.g. if element is being dragged
+      if (childData.domNode.getAttribute('data-prevent-transitions') === 'true') {
+        continue
+      }
       // build up animation arguments
       let keyFrames = null
       let animationDelay = 0

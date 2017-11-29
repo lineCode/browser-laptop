@@ -1240,6 +1240,13 @@ const appActions = {
     })
   },
 
+  tabDragMouseOverOtherWindowTab: function (frameIndex) {
+    dispatch({
+      actionType: appConstants.APP_TAB_DRAG_MOUSEOVER_OTHER_WINDOW_TAB,
+      frameIndex
+    })
+  },
+
   /**
    * Notifies the app that a drop operation occurred
    */

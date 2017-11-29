@@ -40,6 +40,8 @@ const tabDraggingState = {
         detachedWindowId && detachedWindowId === getCurrentWindowId()
     ),
 
+    getDragDetachedWindowId: dragDetachedWindowIdSelector,
+
     isCurrentWindowBufferWindow: createSelector(
       state => state.getIn([appStateKey, 'bufferWindowId']),
       bufferWindowId => bufferWindowId && bufferWindowId === getCurrentWindowId()
@@ -52,6 +54,8 @@ const tabDraggingState = {
       }
     ),
 
+    getDragData: dragDataSelector,
+
     getSourceTabId: createSelector(
       dragDataSelector,
       dragState => dragState && dragState.get('sourceTabId')
@@ -61,6 +65,8 @@ const tabDraggingState = {
       dragDataSelector,
       dragState => dragState && dragState.get('currentWindowId')
     ),
+
+    sourceFrame: sourceFrameSelector,
 
     sourceGuestInstanceId: createSelector(
       sourceFrameSelector,
