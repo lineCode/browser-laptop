@@ -551,7 +551,7 @@ function tabTemplateInit (frameProps) {
 
   template.push(Object.assign({},
     CommonMenu.reopenLastClosedTabItem(),
-    { enabled: store.get('closedFrames').size > 0 }
+    { enabled: store.get('closedFrames', Immutable.List()).size > 0 }
   ))
 
   return menuUtil.sanitizeTemplateItems(template)
