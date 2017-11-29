@@ -73,7 +73,9 @@ const reducer = (state, action, immutableAction) => {
       // reset mouse events for window, so it now works like a normal window
       const detachedWindowId = tabDraggingState.app.getDragDetachedWindowId(state)
       if (detachedWindowId != null) {
-        BrowserWindow.fromId(detachedWindowId).setIgnoreMouseEvents(false)
+        const detachedWindow = BrowserWindow.fromId(detachedWindowId)
+        detachedWindow.setIgnoreMouseEvents(false)
+        detachedWindow.setAlwaysOnTop(false)
       }
       // return to original position, original window
       // delete state data
@@ -89,7 +91,9 @@ const reducer = (state, action, immutableAction) => {
       // reset mouse events for window, so it now works like a normal window
       const detachedWindowId = tabDraggingState.app.getDragDetachedWindowId(state)
       if (detachedWindowId != null) {
-        BrowserWindow.fromId(detachedWindowId).setIgnoreMouseEvents(false)
+        const detachedWindow = BrowserWindow.fromId(detachedWindowId)
+        detachedWindow.setIgnoreMouseEvents(false)
+        detachedWindow.setAlwaysOnTop(false)
       }
       // delete state data
       state = state.delete(stateKey)
@@ -261,6 +265,13 @@ const reducer = (state, action, immutableAction) => {
         const windowX = Math.floor(mouseScreenPos.x - tabX - frameLeftWidth - relativeTabX)
         win.setPosition(windowX, windowY)
         win.setIgnoreMouseEvents(true)
+        // Windows (OS) must have the window blurred in order to ignoreMouseEvents
+        // and pass mouse events through to a window underneath.
+        // This restriction occurs only when a mousedown event has started in the source
+        // window, and has not completed yet, e.g. mid-drag
+        win.blur()
+        // since we're blurring, we should keep the window on top
+        win.setAlwaysOnTop(true)
         setImmediate(() => {
           win.setIgnoreMouseEvents(false)
         })
@@ -298,7 +309,6 @@ const reducer = (state, action, immutableAction) => {
         break
       }
       const senderWindow = BrowserWindow.fromId(senderWindowId)
-      senderWindow.focus()
       const mouseScreenPos = screen.getCursorScreenPoint()
       const cursorWindowPoint = browserWindowUtil.getWindowClientPointAtCursor(senderWindow, mouseScreenPos)
       state = state.mergeIn([stateKey], {
@@ -316,6 +326,8 @@ const reducer = (state, action, immutableAction) => {
         const detachedWindow = BrowserWindow.fromId(detachedWindowId)
         // reset mouse events for window, so it works if used for another purpose later
         detachedWindow.setIgnoreMouseEvents(false)
+        detachedWindow.setAlwaysOnTop(false)
+        senderWindow.focus()
         console.time('attachRequested')
         tabs.moveTo(state, sourceTabId, frameOpts, {}, senderWindowId)
       })

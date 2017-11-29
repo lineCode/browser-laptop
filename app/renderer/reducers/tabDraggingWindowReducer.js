@@ -86,7 +86,16 @@ function setupDragContinueEvents () {
   }
   const onTabDragMove = mouseMoveEvent => {
     mouseMoveEvent.preventDefault()
-    reportMoveToOtherWindow(mouseMoveEvent)
+    if (mouseMoveEvent.buttons) {
+      // only continue drag move event if button is still down
+      reportMoveToOtherWindow(mouseMoveEvent)
+    } else {
+      // sometimes, on Windows (OS), when tab has been moved to another
+      // window and that window has focus, we do not receive mouseup
+      // even through we receive mousemove
+      // So, if the mouse is up, finish the drag event
+      onTabDragComplete()
+    }
   }
   window.addEventListener('mouseup', onTabDragComplete)
   window.addEventListener('keydown', onTabDragCancel)
