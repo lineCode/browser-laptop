@@ -18,6 +18,12 @@ const stateKey = 'tabDragData'
 const reducer = (state, action, immutableAction) => {
   action = immutableAction || makeImmutable(action)
   switch (action.get('actionType')) {
+    case appConstants.APP_SET_STATE: {
+      // in case of a crash during drag, make sure when app
+      // starts, the previous drag state is discarded
+      state = tabDraggingState.app.delete(state)
+      break
+    }
     case appConstants.APP_TAB_DRAG_STARTED: {
       // calculate frame size based on difference
       // between where client reports a screen coordinate is
