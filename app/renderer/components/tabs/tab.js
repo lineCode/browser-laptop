@@ -707,6 +707,8 @@ class Tab extends React.Component {
     }
     return <div
       data-tab-area
+      data-frame-index={this.props.frameIndex}
+      data-display-index={this.props.displayIndex}
       data-prevent-transitions={this.props.isDragging}
       data-is-dragging={this.props.isDragging}
       className={css(
@@ -722,6 +724,7 @@ class Tab extends React.Component {
       onMouseLeave={this.onMouseLeave}
       data-test-id='tab-area'
       data-frame-key={this.props.frameKey}
+      data-tab-id={this.props.tabId}
       ref={elementRef => { this.elementRef = elementRef }}
       >
       {
