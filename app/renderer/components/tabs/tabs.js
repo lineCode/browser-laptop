@@ -228,7 +228,8 @@ class Tabs extends React.Component {
           <div
             key='add'
             className={css(
-              styles.tabs__postTabButtons
+              styles.tabs__postTabButtons,
+              this.props.draggingTabId != null && styles.tabs__postTabButtons_isInvisible
             )}
             ListWithTransitionsPreventMoveRight>
             <LongPressButton
@@ -318,7 +319,12 @@ const styles = StyleSheet.create({
   },
   tabs__postTabButtons: {
     background: '#ddd',
-    zIndex: 400
+    zIndex: 400,
+    opacity: 1,
+    transition: 'opacity 120ms ease-in-out'
+  },
+  tabs__postTabButtons_isInvisible: {
+    opacity: 0
   },
   tabs__tabStrip__newTabButton: {
     background: theme.tabsToolbar.button.backgroundColor,
