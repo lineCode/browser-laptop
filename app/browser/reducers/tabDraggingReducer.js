@@ -52,6 +52,7 @@ const reducer = (state, action, immutableAction) => {
         frameTopHeight,
         frameLeftWidth
       }))
+      console.log('drag started from window', sourceWindowId)
       if (dragSourceData.get('originatedFromSingleTabWindow') === false) {
         // TODO: create at app startup
         const bufferWindow = windows.createBufferWindow()

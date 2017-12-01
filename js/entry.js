@@ -78,6 +78,8 @@ ipc.on(messages.INITIALIZE_WINDOW, (e, mem) => {
   const windowValue = message.windowValue
 
   currentWindow.setWindowId(windowValue.id)
+  window.addEventListener('mouseup', () => console.error(`I got a mouseup! ${windowValue.id} `))
+  document.addEventListener('mouseenter', () => console.error(`mouseenter window ${windowValue.id}`))
   const newState = Immutable.fromJS(message.windowState) || windowStore.getState()
 
   appStoreRenderer.state = Immutable.fromJS(message.appState)

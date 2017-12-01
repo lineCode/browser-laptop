@@ -418,6 +418,7 @@ class Tab extends React.Component {
   }
 
   onMouseEnter (e) {
+    console.error('tab mouse enter', this.props.frameIndex)
     if (this.props.anyTabIsDragging) {
       // report mouse over a tab that is not in the current window
       // TODO: focus window when dragging and mouseenter the whole window

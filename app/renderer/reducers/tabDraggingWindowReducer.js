@@ -90,6 +90,7 @@ function setupDragContinueEvents () {
       // only continue drag move event if button is still down
       reportMoveToOtherWindow(mouseMoveEvent)
     } else {
+      console.error('got mouse move without button, so ending', getCurrentWindowId(), mouseMoveEvent)
       // sometimes, on Windows (OS), when tab has been moved to another
       // window and that window has focus, we do not receive mouseup
       // even through we receive mousemove
