@@ -291,8 +291,8 @@ const reducer = (state, action, immutableAction) => {
             singleTabMoveWin.setIgnoreMouseEvents(false)
           })
         }
-        // attempt to do the same thing for windows and linux
-        if (isWindows || isLinux) {
+        // attempt to do the same thing for linux
+        if (isLinux || isWindows) {
           moveStableHandle = moveStableHandle || setTimeout(() => {
             singleTabMoveWin.setIgnoreMouseEvents(true)
             moveStableHandle = null
@@ -311,14 +311,20 @@ const reducer = (state, action, immutableAction) => {
             if (singleTabMoveWin.id !== otherWin.id) {
               const windowClientPoint = browserWindowUtil.getWindowClientPointAtScreenPoint(otherWin, mouseScreenPos)
               if (browserWindowUtil.isClientPointWithinWindowBounds(otherWin, windowClientPoint)) {
-                // essential to focus the window otherwise Windows will not relay the mouse event
-                // but if drag didn't originate from the currently on top / moving window
+                // essential to focus the window otherwise (in the case where the drag did not originate
+                // from the dragged single-tab window), Windows will not relay the mouse event
+                // Plus, we want to show a window that could potentially get a tab attach event (mouseenter)
+                //
+                // But, if drag didn't originate from the currently on top window
                 // and we give focus away, then we will lose ability to get mouse events from sender
-                if (tabDraggingState.app.getSourceWindowId(state) === singleTabMoveWin.id) {
-                  console.log('Focusing window that we are dragged over', otherWin.id)
-                  otherWin.focus()
-                } else {
-                  console.log('Not focusing window that we are dragged over, because drag window is not the drag source window')
+                // So, use the setAlwaysOnTop trick
+                if (lastWindowAssignedFocus !== otherWin.id) {
+                  if (tabDraggingState.app.getSourceWindowId(state) === singleTabMoveWin.id) {
+                    otherWin.focus()
+                  } else {
+                    otherWin.setAlwaysOnTop(true)
+                    otherWin.setAlwaysOnTop(false)
+                  }
                 }
                 // remember this window in order to prioritize it for next mousemove
                 lastWindowAssignedFocus = otherWin.id
@@ -466,21 +472,20 @@ const reducer = (state, action, immutableAction) => {
             // as that is sent on drag start, or attach to new window
             // give focus to the detached window so it acts on the mouse events
             // even thought they're being sent from the original window
-            if (isDarwin) {
+            if (isDarwin || isWindows) {
               // macOS can have the window be active, so that it can receive the mouseevents from the source window
               // it then will setIgnoreMouseEvents briefly, during window move, to relay mousemove events
               // to any window / tab underneath the cursor
               bufferWindow.show()
             }
-            // Windows and Linux need the window not to be active, so it does not take
+            // Linux need the window not to be active, so it does not take
             // focus away from the source window or any other window that should get the mousemove
             // event. We'll make other windows that are likely to be underneath the mouse cursor
             // 'active' during the window move action handler.
-            if (isWindows || isLinux) {
+            if (isLinux) {
               bufferWindow.showInactive()
-              // TODO: used? Probably doesn't work on Windows / Linux
-              bufferWindow.setIgnoreMouseEvents(true)
-              // since we're not activating, we should keep the window on top
+            }
+            if (isWindows || isLinux) {
               bufferWindow.setAlwaysOnTop(true)
             }
             // move the detached window to the mouse cursor position
