@@ -229,7 +229,9 @@ class Tabs extends React.Component {
             key='add'
             className={css(
               styles.tabs__postTabButtons,
-              this.props.draggingTabId != null && styles.tabs__postTabButtons_isInvisible
+              // hide during drag but only when there's no 'next page' button
+              // as the hiding is to avoid a gap, but that would create a new gap
+              this.props.draggingTabId != null && !this.props.onNextPage && styles.tabs__postTabButtons_isInvisible
             )}
             ListWithTransitionsPreventMoveRight>
             <LongPressButton
@@ -283,26 +285,15 @@ const styles = StyleSheet.create({
     fontSize: '21px',
     height: globalStyles.spacing.tabsToolbarHeight,
     lineHeight: globalStyles.spacing.tabsToolbarHeight,
+    transition: 'background-color 1s linear, color 1s linear',
     backgroundColor: '#ddddddaa',
     zIndex: 400,
     borderRadius: 0
   },
 
   tabs__tabStrip__navigation_isPausing: {
-    backgroundColor: theme.tabsToolbar.button.changingPage.toBackgroundColor,
-    color: theme.tabsToolbar.button.changingPage.color,
-    animationName: [{
-      'from': {
-        backgroundColor: theme.tabsToolbar.button.changingPage.fromBackgroundColor
-      },
-      'to': {
-        backgroundColor: theme.tabsToolbar.button.changingPage.toBackgroundColor
-      }
-    }],
-    animationDuration: '1s',
-    ':hover': {
-      color: theme.tabsToolbar.button.changingPage.color // :-( aphrodite
-    }
+    backgroundColor: '#dddddd',
+    color: theme.tabsToolbar.button.changingPage.toBackgroundColor
   },
 
   tabs__tabStrip__navigation_prev: {

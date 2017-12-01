@@ -230,12 +230,17 @@ class Tab extends React.Component {
 
   detectDragIndexPosition (tabWidth, dragTabWidth, tabLeft) {
     const lastIndex = this.props.totalTabCount - 1
-    const currentIndex = this.props.displayIndex
     const tabRight = tabLeft + dragTabWidth
     if (tabLeft < 0 - DRAG_PAGEMOVE_PX_THRESHOLD) {
-      return Math.max(0, currentIndex - 1)
+      // tab is past the pagemove left threshold,
+      // so ask for the last index of the previous page
+      // unless we are already at the first page
+      return Math.max(0, this.props.firstTabDisplayIndex - 1)
     } else if (tabRight > this.parentClientRect.width + DRAG_PAGEMOVE_PX_THRESHOLD) {
-      return Math.min(lastIndex, currentIndex + 1)
+      // tab is past the pagemove right threshold,
+      // so ask for the first index of the next page
+      // unless we are already at the last page
+      return Math.min(lastIndex, this.props.firstTabDisplayIndex + this.props.displayedTabCount)
     } else {
       // calculate which index within the group a tab would be if it started at
       // the left edge of the dragged tab (do not consider the dragged tab width since it can be different)
@@ -514,7 +519,7 @@ class Tab extends React.Component {
     this.observer.observe(this.tabSentinel)
 
     this.tabNode.addEventListener('auxclick', this.onAuxClick.bind(this))
-    console.log('tab mounted', this.props.tabId, 'drag?', this.props.isDragging, 'outside flow?', this.props.isDragging && !this.props.singleTab && !this.props.dragProcessMoves)
+    console.log('tab mounted', this.props.tabId, 'drag?', this.props.isDragging, 'outside flow?', this.props.isDragging && !this.props.singleTab && !this.props.dragProcessMoves, 'initial client X pos?', this.props.dragWindowClientX)
 
     // if a new tab is already dragging,
     // that means that it has been attached from another window,
