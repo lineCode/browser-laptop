@@ -66,6 +66,11 @@ const tabDraggingState = {
       dragState => dragState && dragState.get('currentWindowId')
     ),
 
+    getSourceWindowId: createSelector(
+      dragDataSelector,
+      dragState => dragState && dragState.get('originalWindowId')
+    ),
+
     sourceFrame: sourceFrameSelector,
 
     sourceGuestInstanceId: createSelector(

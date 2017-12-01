@@ -17,6 +17,10 @@ const windows = require('../windows')
 const stateKey = 'tabDragData'
 const isDarwin = platformUtil.isDarwin()
 const isWindows = platformUtil.isWindows()
+const isLinux = platformUtil.isLinux()
+
+let moveStableHandle
+let lastWindowAssignedFocus
 
 const reducer = (state, action, immutableAction) => {
   action = immutableAction || makeImmutable(action)
@@ -28,6 +32,8 @@ const reducer = (state, action, immutableAction) => {
       break
     }
     case appConstants.APP_TAB_DRAG_STARTED: {
+      // reset / initialize variables
+      lastWindowAssignedFocus = null
       // calculate frame size based on difference
       // between where client reports a screen coordinate is
       // and where we think a screen coordinate would be
@@ -73,8 +79,9 @@ const reducer = (state, action, immutableAction) => {
           // This restriction occurs only when a mousedown event has started in the source
           // window, and has not completed yet, e.g. mid-drag
           if (isWindows) {
-            detachedWindow.blur()
-            // since we're blurring, we should keep the window on top
+            // in windows (and linux), setIgnoreMouseEvents does not work too well,
+            // so we need to blur the window at times.
+            // If we keep the window on top, this won't be noticed
             detachedWindow.setAlwaysOnTop(true)
           }
         })
@@ -102,6 +109,9 @@ const reducer = (state, action, immutableAction) => {
       break
     }
     case appConstants.APP_TAB_DRAG_COMPLETE: {
+      if (moveStableHandle) {
+        clearTimeout(moveStableHandle)
+      }
       console.log('drag complete')
       // reset mouse events for window, so it now works like a normal window
       const detachedWindowId = tabDraggingState.app.getDragDetachedWindowId(state)
@@ -262,7 +272,7 @@ const reducer = (state, action, immutableAction) => {
         const mouseScreenPos = screen.getCursorScreenPoint()
         process.stdout.write('M-')
         // only tab, move the position by delta
-        const win = BrowserWindow.fromId(currentWindowId)
+        const singleTabMoveWin = BrowserWindow.fromId(currentWindowId)
         const relativeTabX = dragSourceData.get('relativeXDragStart')
         const relativeTabY = dragSourceData.get('relativeYDragStart')
         const tabX = action.get('tabX')
@@ -271,15 +281,78 @@ const reducer = (state, action, immutableAction) => {
         const frameTopHeight = dragSourceData.get('frameTopHeight')
         const windowY = Math.floor(mouseScreenPos.y - tabY - frameTopHeight - relativeTabY)
         const windowX = Math.floor(mouseScreenPos.x - tabX - frameLeftWidth - relativeTabX)
-        win.setPosition(windowX, windowY)
+        singleTabMoveWin.setPosition(windowX, windowY)
         // briefly ignore mouse events so we can get the event from a tab in another window
-        // underneath this one
-        win.setIgnoreMouseEvents(true)
-        setImmediate(() => {
-          // put mouse events back, so we can continue to get the mousemove fire, in order
-          // to trigger this action again
-          win.setIgnoreMouseEvents(false)
-        })
+        // underneath this one. This works well on macOS
+        if (isDarwin) {
+          singleTabMoveWin.setIgnoreMouseEvents(true)
+          setImmediate(() => {
+            singleTabMoveWin.setIgnoreMouseEvents(false)
+          })
+        }
+        // attempt to do the same thing for windows and linux
+        if (isWindows || isLinux) {
+          moveStableHandle = moveStableHandle || setTimeout(() => {
+            singleTabMoveWin.setIgnoreMouseEvents(true)
+            moveStableHandle = null
+          }, 40)
+          // also for Windows and Linux, we have to provide mouse events manually to target drag windows
+          // so that their tabs can get mouseenter events, which we need in order to know where and
+          // when to attach to a window
+          let allWindows = BrowserWindow.getAllWindows()
+          // forward mouse event to window if under mouse cursor pos
+          // if multiple matches, then use one that has just previously matched, i.e. check the previously-matched window first
+          if (lastWindowAssignedFocus != null) {
+            allWindows = [ BrowserWindow.fromId(lastWindowAssignedFocus), ...allWindows ]
+          }
+          const sentEventToWindow = allWindows.some(otherWin => {
+            // can't overlap ourself
+            if (singleTabMoveWin.id !== otherWin.id) {
+              const windowClientPoint = browserWindowUtil.getWindowClientPointAtScreenPoint(otherWin, mouseScreenPos)
+              if (browserWindowUtil.isClientPointWithinWindowBounds(otherWin, windowClientPoint)) {
+                // essential to focus the window otherwise Windows will not relay the mouse event
+                // but if drag didn't originate from the currently on top / moving window
+                // and we give focus away, then we will lose ability to get mouse events from sender
+                if (tabDraggingState.app.getSourceWindowId(state) === singleTabMoveWin.id) {
+                  console.log('Focusing window that we are dragged over', otherWin.id)
+                  otherWin.focus()
+                } else {
+                  console.log('Not focusing window that we are dragged over, because drag window is not the drag source window')
+                }
+                // remember this window in order to prioritize it for next mousemove
+                lastWindowAssignedFocus = otherWin.id
+                // we only need to relay event if it's not the window
+                // where the drag event started
+                if (otherWin.id !== tabDraggingState.app.getSourceWindowId(state)) {
+                  console.log('sending mouse move event to other window we are dragged over', otherWin.id)
+                  otherWin.webContents.sendInputEvent({
+                    type: 'mousemove',
+                    x: windowClientPoint.x,
+                    y: windowClientPoint.y,
+                    clientX: windowClientPoint.x,
+                    clientY: windowClientPoint.y,
+                    globalX: mouseScreenPos.x,
+                    globalY: mouseScreenPos.y,
+                    button: 'left',
+                    buttons: 1
+                  })
+                } else {
+                  console.log('not sending mouse event to window we are dragged over because intersect window is drag source window', otherWin.id)
+                }
+                // problem: we have blurred the window being dragged, so unless it was the source dragevent window
+                // it won't receive the mousemove, find out if:
+                // - it's not receiving the event from the source window
+                // - the source window is no longer sending (because *it* isn't receiving)
+                return true
+              }
+            }
+            return false
+          })
+          if (!sentEventToWindow) {
+            // we're not dragging over another window, so clear prioritized window cache
+            lastWindowAssignedFocus = null
+          }
+        }
       })
       break
     }
@@ -344,6 +417,13 @@ const reducer = (state, action, immutableAction) => {
           const [ width, height ] = senderWindow.getSize()
           detachedWindow.setSize(width, height)
           detachedWindow.setPosition(x, y)
+          // TODO: don't need the following? since already done previously...
+          // reset the window being always on top, which we did
+          // for Windows and Linux during detach (or start)
+          if (isWindows || isLinux) {
+            if (detachedWindow !== senderWindow)
+              detachedWindow.setAlwaysOnTop(false)
+          }
           // DO NOT hide the buffer window, as it may have originated the drag
           // ...it will be hidden when the drag operation is complete
         })
@@ -383,20 +463,26 @@ const reducer = (state, action, immutableAction) => {
           setTimeout(() => {
             // new window should already be at current window's position
             // as that is sent on drag start, or attach to new window
-            bufferWindow.show()
-            // Windows (OS) (and linux?) must have the window blurred in order for ignoreMouseEvents to work
-            // and pass mouse events through to a window underneath, where there may be a tab
-            // waiting for a mouseover event.
-            // This restriction occurs only when a mousedown event has started in the source
-            // window, and has not completed yet, e.g. mid-drag
-            if (isWindows) {
-              bufferWindow.blur()
-              // since we're blurring, we should keep the window on top
+            // give focus to the detached window so it acts on the mouse events
+            // even thought they're being sent from the original window
+            if (isDarwin) {
+              // macOS can have the window be active, so that it can receive the mouseevents from the source window
+              // it then will setIgnoreMouseEvents briefly, during window move, to relay mousemove events
+              // to any window / tab underneath the cursor
+              bufferWindow.show()
+            }
+            // Windows and Linux need the window not to be active, so it does not take
+            // focus away from the source window or any other window that should get the mousemove
+            // event. We'll make other windows that are likely to be underneath the mouse cursor
+            // 'active' during the window move action handler.
+            if (isWindows || isLinux) {
+              bufferWindow.showInactive()
+              // TODO: used? Probably doesn't work on Windows / Linux
+              bufferWindow.setIgnoreMouseEvents(true)
+              // since we're not activating, we should keep the window on top
               bufferWindow.setAlwaysOnTop(true)
             }
-            // pass through mouse events to any browser window underneath
-            // so that we get a mousemove for a tab that gets dragged over
-            // bufferWindow.setIgnoreMouseEvents(true)
+            // move the detached window to the mouse cursor position
             const relativeTabX = dragSourceData.get('relativeXDragStart')
             const relativeClientY = dragSourceData.get('originClientY')
             const newPoint = browserWindowUtil.getWindowPositionForClientPointAtCursor({
@@ -404,7 +490,7 @@ const reducer = (state, action, immutableAction) => {
               y: relativeClientY
             })
             bufferWindow.setPosition(newPoint.x, newPoint.y, true)
-          }, 50)
+          }, 50) //TODO: test no / less timeout / setimmediate
         })
       })
       // remember that we have asked for a new window,

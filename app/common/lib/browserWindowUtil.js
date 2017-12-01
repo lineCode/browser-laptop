@@ -115,6 +115,19 @@ function moveWindowToDestination (browserWindow, getDestinationPoint, animate = 
   browserWindow.setPosition(toPoint.x, toPoint.y, animate)
 }
 
+function isClientPointWithinWindowBounds (browserWindow, windowClientPoint) {
+  const [width, height] = browserWindow.getSize()
+  return windowClientPoint.x >= 0 &&
+    windowClientPoint.x < width &&
+    windowClientPoint.y >= 0 &&
+    windowClientPoint.y < height
+}
+
+function isMouseCursorOverWindowContent (browserWindow, cursorScreenPoint = screen.getCursorScreenPoint()) {
+  const windowClientPoint = getWindowClientPointAtScreenPoint(browserWindow, cursorScreenPoint)
+  return isClientPointWithinWindowBounds(browserWindow, windowClientPoint)
+}
+
 module.exports = {
   getWindowClientPointAtCursor,
   getWindowClientPointAtScreenPoint,
@@ -122,5 +135,7 @@ module.exports = {
   animateWindowPosition,
   getWindowPositionForClientPointAtCursor,
   getScreenPointAtWindowClientPoint,
-  getWindowClientSize
+  getWindowClientSize,
+  isMouseCursorOverWindowContent,
+  isClientPointWithinWindowBounds
 }

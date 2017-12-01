@@ -140,6 +140,7 @@ function createEventForSendMouseMoveInput (screenX, screenY) {
     x: 1,
     y: 99,
     globalX: screenX,
-    globalY: screenY
+    globalY: screenY,
+    button: 'left'
   }
 }
