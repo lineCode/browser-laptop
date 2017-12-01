@@ -428,8 +428,9 @@ const reducer = (state, action, immutableAction) => {
           // reset the window being always on top, which we did
           // for Windows and Linux during detach (or start)
           if (isWindows || isLinux) {
-            if (detachedWindow !== senderWindow)
+            if (detachedWindow !== senderWindow) {
               detachedWindow.setAlwaysOnTop(false)
+            }
           }
           // DO NOT hide the buffer window, as it may have originated the drag
           // ...it will be hidden when the drag operation is complete
@@ -472,19 +473,14 @@ const reducer = (state, action, immutableAction) => {
             // as that is sent on drag start, or attach to new window
             // give focus to the detached window so it acts on the mouse events
             // even thought they're being sent from the original window
-            if (isDarwin || isWindows) {
-              // macOS can have the window be active, so that it can receive the mouseevents from the source window
-              // it then will setIgnoreMouseEvents briefly, during window move, to relay mousemove events
-              // to any window / tab underneath the cursor
-              bufferWindow.show()
-            }
-            // Linux need the window not to be active, so it does not take
-            // focus away from the source window or any other window that should get the mousemove
-            // event. We'll make other windows that are likely to be underneath the mouse cursor
-            // 'active' during the window move action handler.
-            if (isLinux) {
-              bufferWindow.showInactive()
-            }
+            //
+            // have the window be active, so that it can receive the mouseevents from the source window
+            // it then will setIgnoreMouseEvents briefly, during window move, to relay mousemove events
+            // to any window / tab underneath the cursor
+            bufferWindow.show()
+            // On Windows and Linux, it's not enought to setInputEvents(false),
+            // we also have to focus the other windows. So the dragged window
+            // should always be the topmost window
             if (isWindows || isLinux) {
               bufferWindow.setAlwaysOnTop(true)
             }
@@ -496,7 +492,7 @@ const reducer = (state, action, immutableAction) => {
               y: relativeClientY
             })
             bufferWindow.setPosition(newPoint.x, newPoint.y, true)
-          }, 50) //TODO: test no / less timeout / setimmediate
+          }, 50)
         })
       })
       // remember that we have asked for a new window,
