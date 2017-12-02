@@ -293,7 +293,11 @@ const styles = StyleSheet.create({
 
   tabs__tabStrip__navigation_isPausing: {
     backgroundColor: '#dddddd',
-    color: theme.tabsToolbar.button.changingPage.toBackgroundColor
+    color: theme.tabsToolbar.button.changingPage.toBackgroundColor,
+    ':hover': {
+      backgroundColor: '#dddddd',
+      color: theme.tabsToolbar.button.changingPage.toBackgroundColor
+    }
   },
 
   tabs__tabStrip__navigation_prev: {
