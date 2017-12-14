@@ -38,6 +38,80 @@ const {theme} = require('../styles/theme')
 
 const newTabButton = require('../../../../img/toolbar/newtab_btn.svg')
 
+// time to wait before moving page during a tab drag
+const DRAG_PAGEMOVE_MS_TIME_BUFFER = 1000
+
+function onRequestDetachTab (itemX, itemY) {
+  appActions.tabDragDetachRequested(itemX, itemY)
+}
+
+function onDragMoveSingleTabWindow (itemX, itemY) {
+  // we do not need to send the cursor pos as it will be read by the store, since
+  // it may move between here and there
+  appActions.tabDragSingleTabMoved(itemX, itemY, getCurrentWindowId())
+}
+
+function onDragChangeIndex (props, destinationIndex) {
+  let shouldPauseDraggingUntilUpdate = false
+  // handle any destination index change by dispatching actions to store
+  if (props.displayIndex !== destinationIndex) {
+    // only allow to drag to a different page if we hang here for a while
+    const lastIndexOnCurrentPage = (props.firstTabDisplayIndex + props.displayedTabCount) - 1
+    const firstIndexOnCurrentPage = props.firstTabDisplayIndex
+    const isDraggingToPreviousPage = destinationIndex < firstIndexOnCurrentPage
+    const isDraggingToNextPage = destinationIndex > lastIndexOnCurrentPage
+    const isDraggingToDifferentPage = isDraggingToPreviousPage || isDraggingToNextPage
+    if (isDraggingToDifferentPage) {
+      // dragging to a different page
+      // first, at least make sure the tab has moved to the index just next to the threshold
+      // (since we might have done a big jump)
+      if (isDraggingToNextPage && props.displayIndex !== lastIndexOnCurrentPage) {
+        shouldPauseDraggingUntilUpdate = true
+        windowActions.tabDragChangeGroupDisplayIndex(false, lastIndexOnCurrentPage)
+      } else if (isDraggingToPreviousPage && props.displayIndex !== firstIndexOnCurrentPage) {
+        shouldPauseDraggingUntilUpdate = true
+        windowActions.tabDragChangeGroupDisplayIndex(false, firstIndexOnCurrentPage)
+      }
+      // make sure the user wants to change page by enforcing a pause
+      beginOrContinueTimeoutForDragPageIndexMove(destinationIndex, props.tabPageIndex, props.firstTabDisplayIndex)
+    } else {
+      // dragging to a different index within the same page,
+      // so clear the wait for changing page and move immediately
+      clearDragPageIndexMoveTimeout()
+      // move display index immediately
+      shouldPauseDraggingUntilUpdate = true
+      windowActions.tabDragChangeGroupDisplayIndex(false, destinationIndex)
+    }
+  } else {
+    // no longer want to change tab page
+    clearDragPageIndexMoveTimeout()
+  }
+  return shouldPauseDraggingUntilUpdate
+}
+
+let draggingMoveTabPageTimeout = null
+
+function clearDragPageIndexMoveTimeout () {
+  if (draggingMoveTabPageTimeout) {
+    window.clearTimeout(draggingMoveTabPageTimeout)
+    draggingMoveTabPageTimeout = null
+    // let store know we're done waiting
+    windowActions.tabDragNotPausingForPageChange()
+  }
+}
+
+function beginOrContinueTimeoutForDragPageIndexMove (destinationIndex, currentTabPageIndex, firstTabDisplayIndex) {
+  // let store know we're waiting to change
+  if (!draggingMoveTabPageTimeout) {
+    const waitingForPageIndex = currentTabPageIndex + ((destinationIndex > firstTabDisplayIndex) ? 1 : -1)
+    windowActions.tabDragPausingForPageChange(waitingForPageIndex)
+  }
+  draggingMoveTabPageTimeout = draggingMoveTabPageTimeout || window.setTimeout(() => {
+    clearDragPageIndexMoveTimeout()
+    windowActions.tabDragChangeGroupDisplayIndex(false, destinationIndex)
+  }, DRAG_PAGEMOVE_MS_TIME_BUFFER)
+}
+
 class Tabs extends React.Component {
   constructor (props) {
     super(props)
@@ -206,6 +280,9 @@ class Tabs extends React.Component {
                   totalTabCount={this.props.totalTabCount}
                   singleTab={this.props.totalTabCount === 1}
                   partOfFullPageSet={this.props.partOfFullPageSet}
+                  onRequestDetach={onRequestDetachTab}
+                  onDragMoveSingleItem={onDragMoveSingleTabWindow}
+                  onDragChangeIndex={onDragChangeIndex}
                   tabPageIndex={displayedTabIndex}
                 />
               )
